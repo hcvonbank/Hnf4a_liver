@@ -1,0 +1,561 @@
+---
+title: "HNF4a_Cleanup"
+author: "Lainy VonBank"
+date: "7/28/2022"
+output: html_document
+---
+
+---
+
+# Load packages
+```{r}
+if(!require(tidyverse)){install.packages("tidyverse")}
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(Cairo)){install.packages("Cairo")}
+getwd()
+```
+
+# Load data output from Profinder Analysis (exported detailed csv)
+```{r, message = F}
+list.files()
+mydata <- read_csv("PFA_2021.02_pos_height.csv")
+Y <- mydata %>% select(grep("Name", names(mydata)), grep("Height", names(mydata)))
+
+```
+
+
+# Blank subtraction 
+Subtracting the processed blank height values from samples is optional as it would apply to all samples.
+The primary reason to perform the subtraction is if there are suspected lipid contaminants that are the main/sole reason for presence of certain peaks. In such a case, the blank subtraction may help elucidate this by taking height values to ~0. 
+
+To quickly screen for such such a possibility, run the following code. 
+```{r}
+# Specify the name of the process blank column below after the subtraction
+a <- as.name(colnames(select(Y,matches("PB"))))
+print(a)
+# Copy this into the second part of the equation below. Make sure it is the PB
+
+Y1 <- mutate(Y, sub_height = `Height (avg)` - `[Height] liver_PB_pos_02162021_49`)
+# Set NA values to 0
+Y1$sub_height <- replace_na(Y1$sub_height, 0)
+print(Y1[Y1$sub_height < 0,]$Name)
+# If any values are less than 0 in Y1$sub_height, that lipid(s) is noise or a contaminant and excluded
+Y1 <- Y1[!Y1$sub_height < 0,]
+```
+
+Additionally, it is possible that for some variables, many, but not all, of the samples have height below the PB.
+However, the 'Avg (height)' is still above the PB height. In this case, run the following code to:
+
+-Tabulate the number of instances where PB height is greater than a sample for each variable
+-Add to that the number of times PB is a value but samples have NA values
+```{r}
+Y1['PB_comp'] <- 0
+# Note that the column values in the below code must be adjusted for different sample sets. 
+# In the second for loop, the numbers should span all sample columns
+# Within the if statements, the column specification should equal the column number of PB
+for (j in 1:nrow(Y1)){
+   for (i in 3:23) {
+    if(is.na(Y1[j, 24]) == F && is.na(Y1[j, i]) == F && Y1[j, 24] >= Y1[j,i]){
+      Y1[j,]$PB_comp = Y1[j,]$PB_comp + 1
+    }else if(is.na(Y1[j, 24]) == F && is.na(Y1[j, i]) == T){
+      Y1[j,]$PB_comp = Y1[j,]$PB_comp + 1
+    }else(Y1[j,]$PB_comp = Y1[j,]$PB_comp)
+  }
+}
+# Remove any variables where half of the samples have values of NA or less than PB
+print(Y1[Y1$PB_comp >= 8,]$Name)
+Y1 <- Y1[Y1$PB_comp < 8,]
+```
+
+# Remove extraneous columns
+```{r}
+Y2 <- Y1 %>% select(grep("Name", names(Y1)), grep("pos", names(Y1)),
+                          grep("neg", names(Y1)))
+# Removes PB
+Y3 <- Y2 %>% select(-grep("PB", names(Y2)))
+Y3 <- Y3 %>% select(-grep("2uL", names(Y3))) #removing the samples that were run at a different volume 
+```
+
+# Rename sample names
+Tailor this section to filename. Note that .* means either 'from beginning' or 'to the end'.
+```{r}
+colnames(Y3)
+colnames(Y3) <- gsub(".*liver_", "", colnames(Y3))
+colnames(Y3) <- gsub("_pos.*" , "", colnames(Y3))
+print(colnames(Y3))
+```
+
+# Filtering of variables with missing data
+Remove lipid variables with less than a certain amount of data availability. This is deprecated. 
+```{r}
+# Set the minimum number of samples that must have a value for a given lipid
+a = 3
+missing.value = as.character()
+for (i in 1:nrow(Y3)){
+  if(table(is.na(Y3[i,]))[1] > a)
+    missing.value[i] = "NO"
+  else(missing.value[i]="YES")
+}
+Y3_rm = data.frame(cbind(rownames(Y3), missing.value)) 
+d <- as.numeric(Y3_rm[Y3_rm$missing.value=="YES", 1])
+print(Y3[d,]$Name)
+d_name <- Y3[d,]$Name
+Y3 <- Y3[!Y3$Name %in% d_name,]
+```
+
+# Transpose data
+```{r}
+Y3 <- sapply(Y3, as.character)
+Y4 <- t(Y3)
+Y5 <- as_tibble(Y4, rownames = "Name")
+colnames(Y5) <- Y5[1,]
+Y6 <- Y5[-1,]
+Y6[,2:ncol(Y6)] <- sapply(Y6[,2:ncol(Y6)], as.numeric) 
+```
+
+# Lipid correlation for duplicate screening [do not use if high number of NA values]
+Correlate lipids. If R=1, same peak used for both lipids. However, if high number of NAs, this will not work.  
+Alternatively, run a strict exclusion below, then correlate to identify lipids to exclude. 
+```{r}
+# Set the minimum number of samples that must have a value for a given lipid [correlation]
+a = 17
+missing.value = as.character()
+for (i in 1:ncol(Y6)){
+  if(table(is.na(Y6[,i]))[1] > a)
+    missing.value[i] = "NO"
+  else(missing.value[i]="YES")
+}
+Y6_rm = data.frame(cbind(colnames(Y6), missing.value)) 
+d <- Y6_rm[Y6_rm$missing.value=="YES", 1]
+Z <- Y6[,!colnames(Y6) %in% d]   
+#Z1 <- Z[-1,] 
+# Now run correlation
+Z2 <- Z[,2:ncol(Z)]
+z = cor(Z2, use = "pairwise.complete.obs")
+z[lower.tri(z, diag=TRUE)] = NA
+z <- z[,2:ncol(z)]
+z = as.data.frame(as.table(z))
+z = z[order(-abs(z$Freq)),]
+y <- z[!is.na(z$Freq)==T,]
+lipid.dups = y[y$Freq>0.99999,]
+lipidup.list = as.vector(lipid.dups$Var1) 
+lipidup.list_2 = as.vector(lipid.dups$Var2)
+# list of likely duplicate lipids (may not be all)
+print(lipidup.list)  
+print(lipidup.list_2)                           
+```
+
+Determine if list is acceptable to remove duplicates. 
+```{r}
+# Adjust which lipids to remove from 'lipidup.list'.  0 = no lipids removed. 
+# For example, if the second and fourth lipids from the list need to be removed but not others:
+# In brackets after lipidup.list, type '[c(2,4)]'
+#rm_lipid <- lipidup.list[c(1:length(lipidup.list))]
+#remove the duplicate annotation with less information on the acyl chain (eg remove TG58:7, keep TG18:0_18:1_22:6)
+rm_lipid <- lipidup.list[c(1:2,10)] 
+rm_lipid_2 <- lipidup.list_2[c(3:9,11:18)]
+Y7 <- Y6[,!colnames(Y6) %in% rm_lipid]   
+Y8 <- Y7[,!colnames(Y7) %in% rm_lipid_2]   
+```
+
+# Add sample information and produce initial output
+```{r}
+list.files()
+sample_info <- read_csv("HNF4a_sample_prep.csv")
+# Ensure that the sample ID containing column is renamed to 'Name' to match Y7
+colnames(sample_info)[1] <- "Name"
+# Check for any other sample id discrepancies
+Y8$Name <- as.numeric(Y8$Name)
+lipid_data <- merge(sample_info, Y8, by = "Name")
+
+```
+Verify data looks good and output initial merge file for further QC and analysis
+```{r}
+write_csv(lipid_data, "cleanup/pos_2021.02_height_initial.csv")
+rm(list = ls())
+```
+Repeat for other ionization mode before continuing.
+
+# Plot standards
+```{r, message=F}
+list.files("cleanup/")
+pos_dat <- read_csv("cleanup/pos_2021.02_height_initial.csv")
+pos_dat$Name <- as.character(pos_dat$Name)
+neg_dat <- read_csv("cleanup/neg_2021.02_height_initial.csv")
+neg_dat$Name <- as.character(neg_dat$Name)
+```
+
+```{r}
+pos_IS <- colnames(select(pos_dat , matches("(d7)")))
+pos_IS <- append(pos_IS, colnames(select(pos_dat , matches("(d9)"))))
+pos_IS <- sort(pos_IS)
+neg_IS <- colnames(select(neg_dat , matches("(d7)")))
+neg_IS <- append(neg_IS, colnames(select(neg_dat , matches("(d9)"))))
+neg_IS <- sort(neg_IS)
+plot_list <- list()
+
+for(i in 1:length(pos_IS)){
+  var_name <- paste0("`", as.name(pos_IS[i]), "`")
+  p <- ggplot(data = pos_dat, aes_string(x= "Name", y = sprintf("log10(%s)", var_name))) +
+             geom_boxplot() + scale_y_continuous(limit = c(3, 7)) + ggtitle(pos_IS[i])
+  plot_list[[i]] <- p
+}
+CairoPDF("cleanup/pos_IS_2021.02.pdf")
+  for (i in 1:length(pos_IS)) {
+    print(plot_list[[i]])
+  }
+dev.off()
+for(i in 1:length(neg_IS)){
+  var_name <- paste0("`", as.name(neg_IS[i]), "`")
+  p <- ggplot(data = neg_dat, aes_string(x= "Name", y = sprintf("log10(%s)", var_name))) +
+             geom_boxplot() + scale_y_continuous(limit = c(3, 7)) + ggtitle(neg_IS[i])
+  plot_list[[i]] <- p
+}
+CairoPDF("cleanup/neg_IS_2021.02.pdf")
+  for (i in 1:length(neg_IS)) {
+    print(plot_list[[i]])
+  }
+dev.off()
+```
+
+# IS normalization (relative). This is a relative quantification of a lipid to it's representative internal standard.
+
+Set IS here. This reduces text below. Take note of missing IS if error.
+```{r}
+print(pos_IS)
+LPC_p <- pos_dat$`LPC 18:1/0:0(d7)`
+PC_p <- pos_dat$`PC 15:0_18:1(d7)`
+PE_p <- pos_dat$`PE 15:0_18:1(d7)`
+SM_p <- pos_dat$`SM d18:1_18:1(d9)`
+TG_p <- pos_dat$`TG 15:0_18:1(d7)_15:0`
+```
+
+Miscellaneous pos first before the IS is normalized by itself. 
+```{r}
+pos_dat[,grepl("^BMP" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^BMP" , names(pos_dat))]/PC_p)
+pos_dat[,grepl("^Cer" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^Cer" , names(pos_dat))]/SM_p)
+pos_dat[,grepl("^CL" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^CL" , names(pos_dat))]/PC_p)
+pos_dat[,grepl("^HexCer" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^HexCer" , names(pos_dat))]/SM_p)
+pos_dat[,grepl("^PS" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^PS" , names(pos_dat))]/PC_p)
+```
+
+```{r}
+pos_dat[,grepl("^ACar" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^ACar" , names(pos_dat))]/LPC_p)
+#pos_dat[,grepl("^CE" , names(pos_dat))] <- 
+  #(pos_dat[,grepl("^CE" , names(pos_dat))]/CE_p) #no CE samples detected
+pos_dat[,grepl("^DG" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^DG" , names(pos_dat))]/TG_p)
+pos_dat[,grepl("^LPC" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^LPC" , names(pos_dat))]/LPC_p)
+pos_dat[,grepl("^LPE" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^LPE" , names(pos_dat))]/LPC_p)
+pos_dat[,grepl("^PC" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^PC" , names(pos_dat))]/PC_p)
+pos_dat[,grepl("^PE" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^PE" , names(pos_dat))]/PE_p)
+pos_dat[,grepl("^PG" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^PG" , names(pos_dat))]/PC_p)
+pos_dat[,grepl("^SM" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^SM" , names(pos_dat))]/SM_p)
+pos_dat[,grepl("^TG" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^TG" , names(pos_dat))]/TG_p)
+
+```
+
+Negative mode. 
+```{r}
+print(neg_IS)
+LPE_n <- neg_dat$`LPE 18:1(d7)`
+PE_n <- neg_dat$`PE 15:0_18:1(d7)`
+PG_n <- neg_dat$`PG 15:0_18:1(d7)`
+PI_n <- neg_dat$`PI 15:0_18:1(d7)`
+PS_n <- neg_dat$`PS 15:0_18:1(d7)`
+SM_n <- neg_dat$`SM d18:1_18:1(d9)`
+```
+
+```{r}
+neg_dat[,grepl("^AcylGlcADG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^AcylGlcADG", names(neg_dat))]/PI_n)
+neg_dat[,grepl("^Cer" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^Cer" , names(neg_dat))]/SM_n)
+neg_dat[,grepl("^CL", names(neg_dat))] <- 
+  (neg_dat[,grepl("^CL", names(neg_dat))]/PG_n)
+neg_dat[,grepl("^EtherOxPC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^EtherOxPC", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^EtherPC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^EtherPC", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^EtherPE", names(neg_dat))] <- 
+  (neg_dat[,grepl("^EtherPE", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^FA", names(neg_dat))] <- 
+  (neg_dat[,grepl("^FA", names(neg_dat))]/LPE_n)
+neg_dat[,grepl("^GlcADG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^GlcADG", names(neg_dat))]/PI_n)
+neg_dat[,grepl("^GM3" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^GM3" , names(neg_dat))]/SM_n)
+neg_dat[,grepl("^HBMP", names(neg_dat))] <- 
+  (neg_dat[,grepl("^HBMP", names(neg_dat))]/PG_n)
+neg_dat[,grepl("^HexCer" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^HexCer" , names(neg_dat))]/SM_n)
+neg_dat[,grepl("^LPA", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPA", names(neg_dat))]/LPE_n)
+neg_dat[,grepl("^LPG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPG", names(neg_dat))]/PG_n)
+neg_dat[,grepl("^LPI", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPI", names(neg_dat))]/PI_n)
+neg_dat[,grepl("^LPS", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPS", names(neg_dat))]/PS_n)
+neg_dat[,grepl("^MGDG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^MGDG", names(neg_dat))]/PI_n)
+neg_dat[,grepl("^OxPC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^OxPC", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^OxPE", names(neg_dat))] <- 
+  (neg_dat[,grepl("^OxPE", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^OxPI", names(neg_dat))] <- 
+  (neg_dat[,grepl("^OxPI", names(neg_dat))]/PI_n)
+neg_dat[,grepl("^PEtOH", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PEtOH", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^PMeOH", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PMeOH", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^SHexCer" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^SHexCer" , names(neg_dat))]/SM_n)
+neg_dat[,grepl("^SQDG" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^SQDG" , names(neg_dat))]/PI_n)
+```
+
+```{r}
+neg_dat[,grepl("^LPC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPC", names(neg_dat))]/LPE_n)
+neg_dat[,grepl("^LPE", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPE", names(neg_dat))]/LPE_n)
+neg_dat[,grepl("^PA", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PA", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^PC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PC", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^PE", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PE", names(neg_dat))]/PE_n)
+neg_dat[,grepl("^PG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PG", names(neg_dat))]/PG_n)
+neg_dat[,grepl("^PI", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PI", names(neg_dat))]/PI_n)
+neg_dat[,grepl("^PS", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PS", names(neg_dat))]/PS_n)
+neg_dat[,grepl("^SM" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^SM" , names(neg_dat))]/SM_n)
+```
+
+# Combine positive and negative mode, remove redundancies, and output
+Some lipids are identified in both positive and negative ionization. This is most common with phospholipids. 
+First, these common lipids must be identified. Then, I drop the common lipid with a lower signal from either the positive or negative list. 
+
+It makes the most sense to keep the one with higher signal because the peak integration was likely better.
+```{r}
+shared <- intersect(colnames(pos_dat)[5:ncol(pos_dat)], 
+                    colnames(neg_dat)[5:ncol(neg_dat)])
+n_s <- neg_dat[,shared]
+p_s <- pos_dat[,shared]
+negMode = as.numeric()
+posMode = as.numeric()
+for (i in 1:ncol(n_s)){
+  negMode[i] = round(summary(n_s[[i]])[3],4)
+  posMode[i] = round(summary(p_s[[i]])[3],4)
+}
+common <- cbind(colnames(n_s), negMode, posMode)
+common <- as_tibble(common)
+common[,2:3] <- sapply(common[,2:3], as.numeric)
+NegHigh <- common$V1[common[[2]] > common[[3]]]  # higher intensity in negative mode
+PosHigh <- common$V1[common[[3]] > common[[2]]]  # higher intensity in positive mode
+# Remember to exclude the variables higher in negative mode from the POSITIVE data frame! And vice-versa
+neg_final <- neg_dat[,!names(neg_dat) %in% PosHigh]
+pos_final <- pos_dat[,!names(pos_dat) %in% NegHigh]
+# Double check no common variables remain (IS is fine)
+shared_test <- intersect(colnames(neg_final)[10:ncol(neg_final)], 
+                    colnames(pos_final[10:ncol(pos_final)]))
+print(shared_test)
+# Final merged dataset
+pos_merge <- pos_final[,c(1,5:ncol(pos_final))]
+Lipids_Final <- merge(neg_final, pos_merge, by = "Name")
+Lipids_Final <- Lipids_Final %>% 
+                  tibble %>% 
+                  select(colnames(Lipids_Final)[1:5], sort(colnames(.)))
+```
+
+# Normalize to starting weight
+For plasma, final units is pmol/mL blood. For everything else, it is pmol/mg tissue.
+```{r}
+IS_rm <- colnames(select(Lipids_Final, matches("(d7)")))
+IS_rm  <- append(IS_rm, colnames(select(Lipids_Final, matches("(d9)"))))
+Lipids_Final <- Lipids_Final[,!names(Lipids_Final) %in% IS_rm]
+Lipids_Final_norm <- Lipids_Final
+Lipids_Final_norm[,5:ncol(Lipids_Final_norm)] <-   
+  Lipids_Final[,5:ncol(Lipids_Final)]/Lipids_Final$weight
+Lipids_Final_norm[is.na(Lipids_Final_norm)] <- 0
+Lipids_Final_norm$Name <- as.numeric(Lipids_Final_norm$Name)
+Lipids_Final_norm  <- Lipids_Final_norm[order(Lipids_Final_norm$Name),]
+write_csv(Lipids_Final_norm, "july22/combined_2021.02_relnorm.csv")
+rm(list=ls())
+```
+
+
+# For metaboanalyst 
+```{r}
+library(dplyr)
+MA <- read_csv("july22/combined_2021.02_relnorm.csv")
+#MA <- MA %>% select(-contains("RT_"))
+MA <- MA[,-4] #remove weight column
+MA_2 <- MA %>% unite("Condition",2:3,remove=T)
+write_csv(MA_2, "july22/combined_2021.02_relnorm_MA.csv")
+rm(list=ls())
+```
+
+
+# IS normalization (semi-quantitative) ############################ This quantification is relative to the amount of internal standard injected for each lipid class. 
+
+
+Set the dilution factor (DF) and volume multiplier here to make negative and positive mode be indicative of the same injected sample amount. Volume multiplier is 5 uL injected in negative mode of 2X diluted, and 3 uL injected in positive mode if 20X diluted. 
+
+Concentrations from Avanti SPLASH mix Lot #33707-013
+
+```{r}
+# 10 uL IS added to each sample
+#DF = 20
+#volume = 3
+# Example PC = 150.6 ug/mL = 0.199  umol/mL
+
+#Values in pmol
+PC_p <- pos_dat$`PC 15:0_18:1(d7)`
+((150.6/753.11)*0.01*(3/150)*1000*1000*(1/20))
+LPC_p <- pos_dat$`LPC 18:1/0:0(d7)`
+((23.8/538.72)*0.01*(3/150)*1000*1000*(1/20))
+PE_p <- pos_dat$`PE 15:0_18:1(d7)`
+((5.3/711.03)*0.01*(3/150)*1000*1000*(1/20))
+TG_p <- pos_dat$`TG 15:0_18:1(d7)_15:0`
+((52.8/812.37)*0.01*(3/150)*1000*1000*(1/20))
+SM_p <- pos_dat$`SM d18:1_18:1(d9)`
+((29.6/738.12)*0.01*(3/150)*1000*1000*(1/20))
+```
+
+Miscellaneous pos first before the IS is normalized by itself. 
+```{r}
+pos_dat[,grepl("^BMP" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^BMP" , names(pos_dat))]/PC_p)*1.999708
+pos_dat[,grepl("^Cer" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^Cer" , names(pos_dat))]/SM_p)*13.37
+pos_dat[,grepl("^CL" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^CL" , names(pos_dat))]/PC_p)*1.999708
+pos_dat[,grepl("^HexCer" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^HexCer" , names(pos_dat))]/SM_p)*13.37
+pos_dat[,grepl("^PS" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^PS" , names(pos_dat))]/PC_p)*1.999708
+```
+
+```{r}
+#pos_dat[,grepl("^ACar" , names(pos_dat))] <- 
+  #(pos_dat[,grepl("^ACar" , names(pos_dat))]/AC_p)
+#pos_dat[,grepl("^DG" , names(pos_dat))] <- 
+  #(pos_dat[,grepl("^DG" , names(pos_dat))]/DG_p)
+pos_dat[,grepl("^LPC" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^LPC" , names(pos_dat))]/LPC_p)*0.4417879
+pos_dat[,grepl("^LPE" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^LPE" , names(pos_dat))]/LPC_p)*0.4417879
+pos_dat[,grepl("^PC" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^PC" , names(pos_dat))]/PC_p)*1.999708
+pos_dat[,grepl("^PE" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^PE" , names(pos_dat))]/PE_p)*0.07453975
+#pos_dat[,grepl("^PG" , names(pos_dat))] <- 
+  #(pos_dat[,grepl("^PG" , names(pos_dat))]/PC_p)*1.999708
+pos_dat[,grepl("^SM" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^SM" , names(pos_dat))]/SM_p)*0.4010188
+pos_dat[,grepl("^TG" , names(pos_dat))] <- 
+  (pos_dat[,grepl("^TG" , names(pos_dat))]/TG_p)*0.6499501
+#pos_dat[,6:ncol(pos_dat)] <- volume*DF*pos_dat[,6:ncol(pos_dat)] 
+```
+
+Negative mode. 
+```{r}
+print(neg_IS)
+LPC_n <- neg_dat$`LPC 18:1/0:0(d7)`
+LPE_n <- neg_dat$`LPE 18:1(d7)`
+PA_n <- neg_dat$`PA 15:0_18:1(d7)`
+PC_n <- neg_dat$`PC 15:0_18:1(d7)`
+PE_n <- neg_dat$`PE 15:0_18:1(d7)`
+PG_n <- neg_dat$`PG 15:0_18:1(d7)`
+PI_n <- neg_dat$`PI 15:0_18:1(d7)`
+PS_n <- neg_dat$`PS 15:0_18:1(d7)`
+SM_n <- neg_dat$`SM d18:1_18:1(d9)`
+```
+
+```{r}
+neg_dat[,grepl("^AcylGlcADG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^AcylGlcADG", names(neg_dat))]/PI_n)*3.34
+neg_dat[,grepl("^Cer" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^Cer" , names(neg_dat))]/SM_n)*13.37
+neg_dat[,grepl("^CL", names(neg_dat))] <- 
+  (neg_dat[,grepl("^CL", names(neg_dat))]/PG_n)*11.65
+neg_dat[,grepl("^EtherOxPC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^EtherOxPC", names(neg_dat))]/PC_n)*66.66
+neg_dat[,grepl("^EtherPC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^EtherPC", names(neg_dat))]/PC_n)*66.66
+neg_dat[,grepl("^EtherPE", names(neg_dat))] <- 
+  (neg_dat[,grepl("^EtherPE", names(neg_dat))]/PE_n)*2.48
+neg_dat[,grepl("^FA", names(neg_dat))] <- 
+  (neg_dat[,grepl("^FA", names(neg_dat))]/LPC_n)*15
+neg_dat[,grepl("^GlcADG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^GlcADG", names(neg_dat))]/PI_n)*3.34
+neg_dat[,grepl("^GM3" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^GM3" , names(neg_dat))]/SM_n)*13.37
+neg_dat[,grepl("^HBMP", names(neg_dat))] <- 
+  (neg_dat[,grepl("^HBMP", names(neg_dat))]/PG_n)*11.65
+neg_dat[,grepl("^HexCer" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^HexCer" , names(neg_dat))]/SM_n)*13.37
+neg_dat[,grepl("^LPA", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPA", names(neg_dat))]/PA_n)*15
+neg_dat[,grepl("^LPG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPG", names(neg_dat))]/PG_n)*11.65
+neg_dat[,grepl("^LPI", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPI", names(neg_dat))]/PI_n)*3.34
+neg_dat[,grepl("^LPS", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPS", names(neg_dat))]/PS_n)*1.67
+neg_dat[,grepl("^MGDG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^MGDG", names(neg_dat))]/PI_n)*3.34
+neg_dat[,grepl("^OxPC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^OxPC", names(neg_dat))]/PC_n)*66.66
+neg_dat[,grepl("^OxPE", names(neg_dat))] <- 
+  (neg_dat[,grepl("^OxPE", names(neg_dat))]/PE_n)*2.48
+neg_dat[,grepl("^OxPI", names(neg_dat))] <- 
+  (neg_dat[,grepl("^OxPI", names(neg_dat))]/PI_n)*3.34
+neg_dat[,grepl("^PEtOH", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PEtOH", names(neg_dat))]/PE_n)*2.48
+neg_dat[,grepl("^PMeOH", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PMeOH", names(neg_dat))]/PC_n)*66.66
+neg_dat[,grepl("^SHexCer" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^SHexCer" , names(neg_dat))]/SM_n)*13.37
+neg_dat[,grepl("^SQDG" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^SQDG" , names(neg_dat))]/PI_n)*3.34
+```
+
+```{r}
+neg_dat[,grepl("^LPC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPC", names(neg_dat))]/LPC_n)*15
+neg_dat[,grepl("^LPE", names(neg_dat))] <- 
+  (neg_dat[,grepl("^LPE", names(neg_dat))]/LPE_n)*3.36
+neg_dat[,grepl("^PA", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PA", names(neg_dat))]/PA_n)*3.33
+neg_dat[,grepl("^PC", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PC", names(neg_dat))]/PC_n)*66.66
+neg_dat[,grepl("^PE", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PE", names(neg_dat))]/PE_n)*2.48
+neg_dat[,grepl("^PG", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PG", names(neg_dat))]/PG_n)*11.65
+neg_dat[,grepl("^PI", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PI", names(neg_dat))]/PI_n)*3.34
+neg_dat[,grepl("^PS", names(neg_dat))] <- 
+  (neg_dat[,grepl("^PS", names(neg_dat))]/PS_n)*1.67
+neg_dat[,grepl("^SM" , names(neg_dat))] <- 
+  (neg_dat[,grepl("^SM" , names(neg_dat))]/SM_n)*13.37
+```
