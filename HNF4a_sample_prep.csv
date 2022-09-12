@@ -1,0 +1,21 @@
+﻿Name,genotype,treatment,weight 
+1,Control,RT,8.6
+2,Control,RT,13
+3,Control,RT,11.7
+4,HNF4a KO ,RT,13.4
+5,HNF4a KO ,RT,11.7
+6,HNF4a KO ,RT,13.2
+7,Control ,cold,11.3
+8,Control ,cold,13.6
+9,Control ,cold,13.2
+10,Control ,cold,10.3
+11,Control ,cold,11.5
+12,Control ,cold,13.5
+13,HNF4a KO ,cold,14.1
+14,HNF4a KO ,cold,11.3
+15,HNF4a KO ,cold,11.7
+16,HNF4a KO ,cold,10.9
+17,HNF4a KO ,cold,12.2
+18,HNF4a KO ,cold,14.2
+,,,
+,,,
