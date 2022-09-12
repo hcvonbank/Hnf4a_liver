@@ -45,7 +45,7 @@ RT <- dfs %>%
   filter(str_detect(Condition,"RT"))
 RT$Condition <- gsub("_RT","",RT$Condition)
 
-Z <- RT
+Z <- cold
 X = matrix(NA, ncol = 3, nrow = ncol(Z))
 colnames(X) <- c("FC", "p", "sig")
 rownames(X) <- colnames(Z)
@@ -66,7 +66,7 @@ p_value = as.numeric()
 
   op <- p.adjust(p_value[3:length(p_value)], method = 'fdr')
   Y1 <- data.frame(X[3:nrow(X),])
-  Y1$sig <- op < 0.05
+  Y1$sig <- op < 0.15
   
   Y1 <- filter(Y1, FC != 0)
   Y1 <- filter(Y1, FC != Inf)
@@ -99,16 +99,16 @@ p_value = as.numeric()
         scale_x_continuous(limits = c(max(Y1$FC)*-3, max(Y1$FC)*3)) +
         scale_y_continuous(limits = c(0, max(Y1$p*1.1))) +
         theme_minimal() +
-        geom_label_repel(aes(x=FC, y=p, label=delabel), min.segment.length = 0, size = 2.5, family = "Arial", max.overlaps = Inf) +
-        scale_color_manual(values=c("gray", "#E64B35FF", "#4DBBD5FF"), name = "Liver Lipids HNF4a KO vs Control RT",
+        #geom_label_repel(aes(x=FC, y=p, label=delabel), min.segment.length = 0, size = 2.5, family = "Arial", max.overlaps = Inf) +
+        scale_color_manual(values=c("gray", "#E64B35FF", "#4DBBD5FF"), name = "Liver Lipids HNF4a KO vs Control Cold",
                            breaks = c("NO", "UP", "DOWN"), 
-                           labels = c("FDR > 0.05", "Increased", "Decreased")) +
+                           labels = c("FDR > 0.15", "Increased", "Decreased")) +
         ggtitle(names(Z)) +
         ylab("-log10(p-value)") +
         xlab("log2(Fold change [KO/Control])") +
         theme(legend.position = "right", text = element_text(size = 12, family = "Arial"))
   
-  CairoPDF(file = paste0("graphs/volcano_rt_PUFAs.pdf"), height = 8, width = 12,)
+  CairoPDF(file = paste0("graphs/volcano_cold_FDR_0.15.pdf"), height = 8, width = 12,)
   print(p0)
   #dev.off() 
   
@@ -116,7 +116,7 @@ p_value = as.numeric()
   Y1$FC = round(2^Y1[,1], 4)
   Y1$p_val = round(10^Y1[,2], 4)
   
-  write_csv(Y1, "volcano_rt.csv")
+  write_csv(Y1, "volcano_cold_fdr0.15.csv")
 rm(list=ls())
 ```
 
