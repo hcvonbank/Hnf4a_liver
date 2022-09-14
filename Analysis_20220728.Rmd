@@ -1,7 +1,7 @@
 ---
 title: "Data analysis"
 author: "Lainy VonBank"
-date: "07.28.2022"
+date: "09.12.2022"
 output: html_document
 ---
 # Load packages and data
@@ -123,16 +123,16 @@ rm(list=ls())
 
 # Lipid class distribution
 ```{r}
-list.files()
+list.files("cleanup/")
 mydata <- read_csv("cleanup/combined_pmol_mg_tissue.csv")
 mydata[mydata == 0] <- NA
 mydata<- mydata %>%
   unite("Condition",2:3,remove=T)
 mydata$Condition <- gsub("HNF4a ", "", mydata$Condition)
-mydata1 <- mydata[-3] #remove tissue weight
+mydata1 <- mydata[-c(3)] #remove tissue weight
 
 
-mydata1_PL <- mydata1[,c(1:2,grep("PC", colnames(mydata1)),grep("PE", colnames(mydata1)),grep("PI", colnames(mydata1)),grep("PG", colnames(mydata1)),grep("PS", colnames(mydata1)), grep("PMe", colnames(mydata1)))]
+mydata1_PL <- mydata1[,c(1:2,grep("PC", colnames(mydata1)),grep("PE", colnames(mydata1)),grep("PI", colnames(mydata1)),grep("PG", colnames(mydata1)),grep("PS", colnames(mydata1)), grep("PMe", colnames(mydata1)),grep("BMP", colnames(mydata1)), grep("DG", colnames(mydata1)), grep("PA", colnames(mydata1)))]
 colnames(mydata1_PL) <- gsub("/", "_", colnames(mydata1_PL))
 
 mydata1_Cer_other <- mydata1[,c(1:2,grep("Cer", colnames(mydata1)),grep("SM", colnames(mydata1)), grep("FAH", colnames(mydata1)))]
@@ -158,7 +158,10 @@ mdat2$variable <- gsub(".*PE ", "", mdat2$variable)
 mdat2$variable <- gsub(".*PI ", "", mdat2$variable)
 mdat2$variable <- gsub(".*PS ", "", mdat2$variable)
 mdat2$variable <- gsub(".*PG ", "", mdat2$variable)
+mdat2$variable <- gsub(".*PA ", "", mdat2$variable)
+mdat2$variable <- gsub(".*BMP ", "", mdat2$variable)
 mdat2$variable <- gsub(".*PMeOH ", "", mdat2$variable)
+mdat2$variable <- gsub(".*DG ", "", mdat2$variable)
 
 mdat2_FA <- str_split_fixed(mdat2$variable, "_", 2)
 mdat3 <- cbind(mdat2, mdat2_FA)
@@ -175,7 +178,7 @@ View(mdat4)
 mdat4$FA <- gsub("e", " ", mdat4$FA)
 
 chains <- c("12:0", "14:0","15:0", "16:0", "16:1","17:0","17:1", "18:0", "18:1", 
-            "18:2", "18:3", "20:0" ,"20:3", "20:4", "20:5", "22:4", 
+            "18:2", "18:3","19:0", "20:0" ,"20:3", "20:4", "20:5", "22:4", 
             "22:5", "22:6", "24:1")
 mdat4_2 <- mdat4[mdat4$FA %in% chains,]
 #Save a csv for each lipid class
@@ -209,12 +212,12 @@ mdat4 <- bind_rows(mdat3_FA1, mdat3_FA2)
 #check that the number of rows equals the sum of the the mdat3FA1+2
 View(mdat4)
 
-chains <- c("12:0", "14:0", "16:0", "16:1","18:0", "18:1", 
-            "18:2", "18:3", "20:0" ,"20:3", "20:4", "20:5", "22:4", 
+chains <- c("12:0", "14:0","15:0", "16:0", "16:1","17:0","17:1", "18:0", "18:1", 
+            "18:2", "18:3","19:0", "20:0" ,"20:3", "20:4", "20:5", "22:4", 
             "22:5", "22:6", "24:1")
 mdat4_2 <- mdat4[mdat4$FA %in% chains,]
 #Save a csv for each lipid class
-write_csv(mdat4_2, "acyl_Cer.csv")
+write_csv(mdat4_2, "acyl_chain/acyl_Cer.csv")
 rm(list = ls())
 ```
 
@@ -229,74 +232,15 @@ view(mdat2)
 mdat2$variable <- gsub("FA ", " ", mdat2$variable)
 mdat2$FA <- mdat2$variable
 
-chains <- c("12:0", "14:0", "16:0", "16:1","18:0", "18:1", 
-            "18:2", "18:3", "20:0" ,"20:3", "20:4", "20:5", "22:4", 
+chains <- c("12:0", "14:0","15:0", "16:0", "16:1","17:0","17:1", "18:0", "18:1", 
+            "18:2", "18:3","19:0", "20:0" ,"20:3", "20:4", "20:5", "22:4", 
             "22:5", "22:6", "24:1")
 mdat4_2 <- mdat2[mdat2$FA %in% chains,]
 #Save a csv for each lipid class
-write_csv(mdat4_2, "acyl_FA.csv")
+write_csv(mdat4_2, "acyl_chain/acyl_FA.csv")
 rm(list = ls())
 ```
 
-#Triglycerides (composite)
-```{r}
-mdat1 <- mydata1_TG 
-mdat1[is.na(mdat1)] <- 0
-
-mdat2 <- reshape2::melt(mdat1, id = c(1:2))
-mdat2$variable <- gsub("\\.1", "", mdat2$variable)
-
-mdat2$variable <- gsub(".*TG ", "", mdat2$variable)
-
-mdat2_FA <- str_split_fixed(mdat2$variable, "_", 3)
-mdat3 <- cbind(mdat2, mdat2_FA)
-
-#For composite acyl chains 
-mdat3_DB1 <- str_split_fixed(mdat3$`1`,":", 2)
-mdat3_DB2 <- str_split_fixed(mdat3$`2`,":", 2)
-mdat3_DB3 <- str_split_fixed(mdat3$`3`,":", 2)
-mdat3_DB <- cbind(mdat3, mdat3_DB1, mdat3_DB2, mdat3_DB3)
-mdat3_DB[,8:ncol(mdat3_DB)] <- sapply(mdat3_DB[,8:ncol(mdat3_DB)], as.numeric)
-mdat3_DB$sumacyl <- rowSums(mdat3_DB[,c(8,10,12)], na.rm=T)
-mdat3_DB$sumDB <- rowSums(mdat3_DB[,c(9,11,13)], na.rm=T)
-mdat3_DB$sumDB <- as.character(mdat3_DB$sumDB)
-mdat3_DB <- mdat3_DB %>% unite("sumCOMP",14:15, sep = ":", remove = F)
-
-View(mdat3_DB)
-
-mdat5 <- aggregate(mdat3_DB$value, by=list(Temp=mdat3_DB$Condition, DB=mdat3_DB$sumDB), FUN=sum)
-KOc <- mdat5[mdat5$Temp == "KO_cold",]
-KOrt <- mdat5[mdat5$Temp == "KO_RT",]
-
-pie(KOc$x, labels = KOc$DB, main = "Cold KO",
-    border="white")
-pie(KOrt$x, labels = KOrt$DB, main = "RT KO",
-    border="white")
-
-Z2<- mdat3_DB
-# Define x-axis variable
-a = "sumCOMP"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Condition"
-Z2$Condition = factor(Z2$Condition, levels = c("Control_RT", "KO_RT","Control_cold","KO_cold"), ordered = TRUE) 
-p0 <- ggbarplot(Z2, x = a, y = b,
-            add = "mean_se", color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5) 
-
-
-p1 <- ggpar(p0, legend = "right", legend.title = c, 
-      xlab = F, ylab = "Sum Abundance") +
-theme(text = element_text(size=20),
-        axis.text.x = element_text(angle=45, hjust=1, size = 12)) 
-
-
-print(p1)
-```
 
 #Triglycerides (separated)
 ```{r}
@@ -322,724 +266,166 @@ mdat4 <- bind_rows(mdat3_FA1, mdat3_FA2, mdat3_FA3)
 
 
 View(mdat4)
-chains <- c("12:0", "14:0", "16:0", "16:1","18:0", "18:1", 
-            "18:2", "18:3", "20:0" ,"20:3", "20:4", "20:5", "22:4", 
+chains <- c("12:0", "14:0","15:0", "16:0", "16:1","17:0","17:1", "18:0", "18:1", 
+            "18:2", "18:3","19:0", "20:0" ,"20:3", "20:4", "20:5", "22:4", 
             "22:5", "22:6", "24:1")
 mdat4_2 <- mdat4[mdat4$FA %in% chains,]
 #Save a csv for each lipid class
-write_csv(mdat4_2, "acyl_TG.csv")
+write_csv(mdat4_2, "acyl_chain/Jain22/acyl_TG.csv")
 rm(list = ls())
 ```
 
+#Segmented Bar graph acyl chain sums
 ```{r}
 list.files()
-N1 <- read_csv("acyl_Cer.csv")
-N2 <- read_csv("acyl_PL.csv")
-N3 <- read_csv("acyl_FA.csv") 
-N4 <- read_csv("acyl_sum_TG.csv")
+N1 <- read_csv("acyl_chain/acyl_Cer.csv")
+N2 <- read_csv("acyl_chain/acyl_PL.csv")
+N3 <- read_csv("acyl_chain/acyl_FA.csv") 
+N4 <- read_csv("acyl_chain/acyl_TG.csv")
+
+mdat_combo <- rbind(N1,N2,N3,N4)
+
+
+mdat5 <- aggregate(mdat_combo$value, by=list(Name=mdat_combo$Name, Temp=mdat_combo$Condition, FA=mdat_combo$FA), FUN=sum) #sum acyl chain per sample
+View(mdat5)
+
+
+mdat6 <- str_split_fixed(mdat5$`FA`,":", 2)
+mdat_class <- cbind(mdat5,mdat6)
+colnames(mdat_class)[colnames(mdat_class) == 'x'] <- 'value'
+View(mdat_class)
+mdat_class$`2` <- as.numeric(mdat_class$`2`)
+
+mdat_class$class[mdat_class$`2` == 0] <- "SFA"
+mdat_class$class[mdat_class$`2` == 1] <- "MUFA"
+mdat_class$class[mdat_class$`2` > 1] <- "PUFA"
+
+Zrt <- mdat_class[str_detect(mdat5$Temp,"RT"),]
+Zrt$Temp <- gsub("_RT","",Zrt$Temp)
+Zrt$class = factor(Zrt$class, levels = c("SFA", "MUFA", "PUFA"),ordered=T)
+
+Zc <- mdat_class[str_detect(mdat5$Temp,"cold"),]
+Zc$Temp <- gsub("_cold","",Zc$Temp)
+Zc$class = factor(Zc$class, levels = c("SFA", "MUFA", "PUFA"),ordered=T)
+
+p0 <- ggplot(Zrt, aes(x=Temp, y=value, fill=class)) + 
+    geom_bar(position="fill", stat="identity")
+
+p1 <- ggpar(p0, legend = "right", legend.title = "Saturation Class", 
+                xlab = "RT", ylab = "% Abundance")
+  p2 <- p1 + theme_bw() 
+
+CairoPDF(file = paste0("acyl_chain/segmented_RT.pdf"), height = 8, width = 12,)
+  print(p2)
+
+
+```
+
+
+
+#Triglycerides (composite). This incorporates TGs that did not have acyl chains fully annotated, but can still gather information on the number of double bonds. 
+```{r}
+mdat1 <- mydata1_TG 
+mdat1[is.na(mdat1)] <- 0
+
+mdat2 <- reshape2::melt(mdat1, id = c(1:2))
+mdat2$variable <- gsub("\\.1", "", mdat2$variable)
+
+mdat2$variable <- gsub(".*TG ", "", mdat2$variable)
+
+mdat2_FA <- str_split_fixed(mdat2$variable, "_", 3)
+mdat3 <- cbind(mdat2, mdat2_FA)
+
+#For composite acyl chains 
+mdat3_DB1 <- str_split_fixed(mdat3$`1`,":", 2)
+mdat3_DB2 <- str_split_fixed(mdat3$`2`,":", 2)
+mdat3_DB3 <- str_split_fixed(mdat3$`3`,":", 2)
+mdat3_DB <- cbind(mdat3, mdat3_DB1, mdat3_DB2, mdat3_DB3)
+mdat3_DB[,8:ncol(mdat3_DB)] <- sapply(mdat3_DB[,8:ncol(mdat3_DB)], as.numeric)
+mdat3_DB$sumacyl <- rowSums(mdat3_DB[,c(8,10,12)], na.rm=T)
+mdat3_DB$sumDB <- rowSums(mdat3_DB[,c(9,11,13)], na.rm=T)
+mdat3_DB$sumDB <- as.character(mdat3_DB$sumDB)
+mdat3_DB <- mdat3_DB %>% unite("sumCOMP",14:15, sep = ":", remove = F)
+
+mdat5 <- aggregate(mdat3_DB$value, by=list(Temp=mdat3_DB$Condition, DB=mdat3_DB$sumDB), FUN=sum)
+colnames(mdat5)[colnames(mdat5) == 'x'] <- 'value'
+View(mdat5)
+
+mdat5$DB <- as.numeric(mdat5$DB)
+mdat5$DB = factor(mdat5$DB, ordered = T)
+mdat5$Temp = factor(mdat5$Temp, levels = c("Control_RT","KO_RT","Control_cold", "KO_cold"), ordered = T)
+
+p0 <- ggplot(mdat5, aes(x=Temp, y=value, fill=DB)) + 
+    geom_bar(position="fill", stat="identity")
+
+p1 <- ggpar(p0, legend = "right", legend.title = "Number of double bonds", 
+               ylab = "% Abundance", title = "Triglyceride Composition")
+  p2 <- p1 + theme_bw() 
+
+CairoPDF(file = paste0("acyl_chain/all_TGs_segmented.pdf"), height = 8, width = 12,)
+  print(p2)
+
+######
+KOc <- mdat5[mdat5$Temp == "KO_cold",]
+KOrt <- mdat5[mdat5$Temp == "KO_RT",]
+
+pie(KOc$x, labels = KOc$DB, main = "Cold KO",
+    border="white")
+pie(KOrt$x, labels = KOrt$DB, main = "RT KO",
+    border="white")
+
+```
+
+
+#Bar graph acyl summation RT vs cold (data from Jain et al 2022)
+```{r}
+list.files()
+N1 <- read_csv("acyl_chain/Jain22/acyl_Cer.csv")
+N2 <- read_csv("acyl_chain/Jain22/acyl_PL.csv")
+N3 <- read_csv("acyl_chain/Jain22/acyl_FA.csv") 
+N4 <- read_csv("acyl_chain/Jain22/acyl_TG.csv")
 
 mdat_combo <- rbind(N1,N2,N3,N4)
 
 mdat5 <- aggregate(mdat_combo$value, by=list(Name=mdat_combo$Name, Temp=mdat_combo$Condition, FA=mdat_combo$FA), FUN=sum) #sum acyl chain per sample
+View(mdat5)
 
-Z2 <- mdat5
+mdat5$FA = factor(mdat5$FA, ordered = T)
+mdat5$Temp = factor(mdat5$Temp,levels = c("RT", "Cold"), ordered = T)
+
 a = "FA"
-
-# Define y-axis variable
 b = "x"
-
-# Define additional variable related to color (if none, set equal to a)
 c = "Temp"
-
-Z2$Temp = factor(Z2$Temp, levels = c("Control_RT", "KO_RT","Control_cold","KO_cold"), ordered = TRUE) 
-
-p0 <- ggbarplot(Z2, x = a, y = b,
+p0 <- ggbarplot(mdat5, x = a, y = b,
             add = "mean_se", color = "black", fill = c, 
             add.params = list(width = 0.35, binwidth = 0.07),
             alpha = 0.5, position = position_dodge(0.8), size = .5) 
-p1 <- ggpar(p0, legend = "right", legend.title = c, 
-      xlab = F, ylab = "Acyl chain sum abundance (TG)") +
-theme(text = element_text(size=12),
+p1 <- ggpar(p0, palette=c("white","black"), legend = "right", legend.title = c, xlab = F, ylab = "Acyl chain sum (nmol/g tissue)") +
+  theme(text = element_text(size=12),
         axis.text.x = element_text(angle=45, hjust=1, size = 12)) 
-stat.test <- Z2 %>% 
+
+stat.test <- mdat5 %>% 
                   group_by(FA) %>% 
                   t_test(x ~ Temp) %>% 
-                  adjust_pvalue(method = "bonferroni") %>%
+                  adjust_pvalue(method = "none") %>%
                   add_significance("p") %>% 
                   add_xy_position(fun="mean_se",x=a,dodge=0.8)
-  #stat.test$p.adj.signif <- stat.test$p.signif 
+  stat.test$p.adj.signif <- stat.test$p.signif 
   
   p3 <- p1 + stat_pvalue_manual(
       stat.test, label = "p.adj.signif", hide.ns = T)
-  
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Ether Bar graphs
-
-```{r}
-list.files("cleanup/")
-dfs <- read_csv("cleanup/combined_pmol_mg_tissue.csv")
-dfs <- dfs %>%
-  unite("Condition",2:3,remove=T)
-ether <- dfs %>% select(grep("Condition", names(dfs)), grep("Ether", names(dfs)))
-View(ether) #check for duplicate annotations 
-ether <- ether[-7] #manually removed a duplicate 
-ether$Condition <- as.factor(ether$Condition)
-#means <- ether %>% group_by(Condition) %>% summarise(across(everything(), list(mean)))
-#ether_means <- melt(means[,c(1:30)],id.vars = 1)
-ether <- as.data.frame(ether)
-ether_2 <- melt(ether[,c(1:25)],id.vars = 1)
-
-# Define x-axis variable
-a = "variable"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Condition"
-ether_2$Condition = factor(ether_2$Condition, levels = c("Control_RT", "HNF4a KO_RT", "Control_cold","HNF4a KO_cold"), ordered = TRUE) 
-
-################ all ethers on one graph
-p0 <- ggbarplot(ether_2, x = a, y = b,
-            add = c("mean_se"), color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5) 
-
-
-p1 <- ggpar(p0, palette = c("#fdae61","#d7191c","#abd9e9","#2c7bb6"), legend = "right", legend.title = c, 
-      xlab = F, ylab = "Normalized Abundance)") +
-theme(text = element_text(size=20),
-        axis.text.x = element_text(angle=45, hjust=1, size = 12)) 
-print(p1)
-
-CairoPDF(file = paste0("graphs/202102_ISnorm_pmol_ether_bargraph.pdf"), height = 8, width = 12,)
-  print(p1)
-  
-  
-################################## fold change with KO in each temp condition 
-
-X = matrix(NA, ncol = 2, nrow = ncol(ether[]))
-colnames(X) <- c("RT", "cold")
-rownames(X) <- colnames(ether)
-
-
-#p_value = as.numeric()
-Z <- ether
-Z$Condition <- gsub("HNF4a ", "", Z$Condition)
-is.array(X)
-  for (j in 2:ncol(Z)) {                               
-    X[j,1] = round(mean(Z[Z$Condition == "KO_RT",j],na.rm = T)/mean(Z[Z$Condition == "Control_RT",j], na.rm = T), 4)
-    X[j,2] = round(mean(Z[Z$Condition == "KO_cold",j],na.rm = T)/mean(Z[Z$Condition == "Control_cold",j], na.rm = T), 4)
-  }
-###for log2 calculation
-  for (j in 2:ncol(Z)) {                               
-    X[j,1] = log2(mean(Z[Z$Condition == "KO_RT",j],na.rm = T)) - log2(mean(Z[Z$Condition == "Control_RT",j], na.rm = T))
-    X[j,2] = log2(mean(Z[Z$Condition == "KO_cold",j],na.rm = T)) - log2(mean(Z[Z$Condition == "Control_cold",j], na.rm = T))
-  }
-
-X1<-X[-1,] #remove first row
-X1 <- as.data.frame(X1)
-View(X1)
-X2 <- t(X1)
-X2 <- as.data.frame((X2))
-X2$Temp <- rownames(X2)
-View(X2)
-X3 <- melt(X2[,c(1:25)], id.vars=25)
-# Define x-axis variable
-a = "variable"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Temp"
-X3$Temp = factor(X3$Temp, levels = c("RT", "cold"), ordered = TRUE) 
-p2 <- ggbarplot(X3, x = a, y = b,
-            color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5)  #+
-  #geom_hline(yintercept=1, linetype='dashed', col="grey")
-p3 <- ggpar(p2, palette = "npg", 
-      xlab = F, ylab = "log2FC [KO/Control]") +
-theme(text = element_text(size=20),
-        axis.text.x = element_text(angle=50, hjust=1, size = 10))
-
-CairoPDF(file = paste0("graphs/202102_ISnorm_pmol_ether_FC_KO.pdf"), height = 8, width = 12,)
+ 
+  CairoPDF(file = paste0("acyl_chain/Jain22/bar.pdf"), height = 8, width = 12,)
   print(p3)
-  
-  
-################################## fold change with cold exposure in each genotype 
-
-X= matrix(NA, ncol = 2, nrow = ncol(ether[]))
-colnames(X) <- c("WT", "KO")
-rownames(X) <- colnames(ether)
-
-
-#p_value = as.numeric()
-Z <- ether
-Z$Condition <- gsub("HNF4a ", "", Z$Condition)
-View(Z)
-is.array(X)
-  for (j in 2:ncol(Z)) {                               
-    X[j,1] = round(mean(Z[Z$Condition == "Control_cold",j],na.rm = T)/mean(Z[Z$Condition == "Control_RT",j], na.rm = T), 4)
-    X[j,2] = round(mean(Z[Z$Condition == "KO_cold",j],na.rm = T)/mean(Z[Z$Condition == "KO_RT",j], na.rm = T), 4)
-  }
-
-X<-X[-1,] #remove first row
-X1 <- log2(X)
-X1 <- as.data.frame(X1)
-X2 <- t(X1)
-X2 <- as.data.frame((X2))
-X2$Genotype <- rownames(X2)
-X3 <- melt(X2[,c(1:26)], id.vars=26)
-# Define x-axis variable
-a = "variable"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Genotype"
-X3$Genotype = factor(X3$Genotype, levels = c("WT", "KO"), ordered = TRUE) 
-p2 <- ggbarplot(X3, x = a, y = b,
-            color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5) 
-p3 <- ggpar(p2, palette = c("white","black"), 
-      xlab = F, ylab = "log2FC[cold/RT]") +
-theme(text = element_text(size=20),
-        axis.text.x = element_text(angle=50, hjust=1, size = 10)) 
-
-CairoPDF(file = paste0("graphs/202102_ISnorm_ether_FC_cold.pdf"), height = 8, width = 12,)
-  print(p3)
-  
+   
 
 ```
 
 
-#Acyl chain analysis
-```{r}
-list.files("cleanup/")
 
-df <- read_csv("cleanup/combined_2021.02_ISnorm_pM_noDAG.csv")
-df <- df %>%
-  unite("Condition",2:3,remove=T)
-df <- df[-3]
 
 
-chains <- c("12:0", "12:1", "14:0", "14:1", "16:0", "16:1", "17:0", "18:0", "18:1", 
-              "18:2", "18:3", "20:0", "20:1", "20:2", "20:3", "20:4", "20:5", "22:0", 
-              "22:1", "22:3", "22:4", "22:5", "22:6", "24:0", "24:1", "26:0")
 
-VLC <- c("22:0", "22:1", "22:3", "22:4", "22:5", "22:6", "24:0", "24:1", "26:0")
-MUFA <- c("12:1", "14:1", "16:1", "18:1", "20:1","22:1", "24:1")
-PUFA <- c("18:2", "18:3", "20:2", "20:3", "20:4", "20:5", 
-              "22:3", "22:4", "22:5", "22:6")
 
-W = matrix(NA, ncol = length(chains), nrow = nrow(df))
-  colnames(W) <- chains
-  
-  for (j in chains){
-    temp <- df[,grep(j, names(df))]
-    W[,which(chains==j)] = rowSums(temp, na.rm = T)
-  }
-  
-temp <- cbind(df[,c(1:2)], W)
 
-#VLC
-W1 = matrix(NA, ncol = length(VLC), nrow = nrow(df))
-  colnames(W1) <- VLC
-  
-  for (j in VLC){
-    temp <- df[,grep(j, names(df))]
-    W1[,which(VLC==j)] = rowSums(temp, na.rm = T)
-  }
-  
-temp1 <- cbind(df[,c(1:2)], W1)
-
-#MUFA
-W2 = matrix(NA, ncol = length(MUFA), nrow = nrow(df))
-  colnames(W2) <- MUFA
-  
-  for (j in MUFA){
-    temp <- df[,grep(j, names(df))]
-    W2[,which(MUFA==j)] = rowSums(temp, na.rm = T)
-  }
-  
-temp2 <- cbind(df[,c(1:2)], W2)
-
-#PUFA
-W3 = matrix(NA, ncol = length(PUFA), nrow = nrow(df))
-  colnames(W3) <- PUFA
-  
-  for (j in PUFA){
-    temp <- df[,grep(j, names(df))]
-    W3[,which(PUFA==j)] = rowSums(temp, na.rm = T)
-  }
-  
-temp3 <- cbind(df[,c(1:2)], W3)
-
-#write_csv(temp1, "misc/acylchain_sums_pM.csv")
-```
-
-Bar graph acyl chain all conditions 
-```{r}
-Z <- temp1 
-Z$Condition <- gsub("HNF4a ", "", Z$Condition)
-Z$Condition <- as.factor(Z$Condition)
-Z <- as.data.frame(Z[-1])
-
-#manually drop columns missing data 
-View(Z)
-Z <- Z[,-c(21,27)] 
-
-
-Z2 <- melt(Z) 
-Z2 <- Z2 %>% mutate(acyl=variable)
-# Define x-axis variable
-a = "acyl"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Condition"
-Z2$Condition = factor(Z2$Condition, levels = c("Control_RT", "KO_RT","Control_cold","KO_cold"), ordered = TRUE) 
-
-p0 <- ggbarplot(Z2, x = a, y = b,
-            add = "mean_se", color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5) 
-
-
-p1 <- ggpar(p0, legend = "right", legend.title = c, 
-      xlab = F, ylab = "Sum Abundance") +
-theme(text = element_text(size=20),
-        axis.text.x = element_text(angle=45, hjust=1, size = 12)) 
-print(p1)
-
-CairoPDF(file = paste0("graphs/2021.02_update_ISnorm_pmol_noDG_acylchain.pdf"), height = 8, width = 12,)
-  print(p1)
-
-rm(list=ls())
-
-```
-
-Bar graph of acyl chain sums in cold 
-```{r}
-Z <- temp %>% filter(str_detect(Condition,"cold"))
-Z$Condition <- gsub("_cold","",Z$Condition)
-Z$Condition <- gsub("HNF4a ", "", Z$Condition)
-Z$Condition <- as.factor(Z$Condition)
-Z <- as.data.frame(Z[-1])
-
-#manually drop columns missing data 
-View(Z)
-
-Z2 <- mutate(Z, MUFA = rowSums(Z[,colnames(Z) %in% MUFA] )) %>% mutate(Z, PUFA = rowSums(Z[,colnames(Z) %in% PUFA] )) %>% mutate(Z, VLCFA = rowSums(Z[,colnames(Z) %in% VLC] ))
-
-Z3 <- Z2[c(1,28:30)]
-
-Z4 <- melt(Z3) 
-Z4 <- Z4 %>% mutate(acyl=variable)
-# Define x-axis variable
-a = "acyl"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Condition"
-Z4$Condition = factor(Z4$Condition, levels = c("Control", "KO"), ordered = TRUE) 
-
-p0 <- ggbarplot(Z4, x = a, y = b,
-            add = "mean_se", color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5,  ylim = c(0, 3500)) + scale_y_continuous(expand=c(0,0))
-
-
-p1 <- ggpar(p0, palette = c("white","black"), legend = "right", legend.title = c, 
-      xlab = F, ylab = "Acyl chain sum (pmol)") +
-theme(text = element_text(size=20),
-        axis.text.x = element_text(size = 14))
-
-
-stat.test <- Z4 %>% 
-                  group_by(acyl) %>% 
-                  t_test(value ~ Condition) %>% 
-                  adjust_pvalue(method = "none") %>%
-                  add_significance("p") %>% 
-                  add_xy_position(fun="mean_se",x=a,dodge=0.8)
-  stat.test$p.adj.signif <- stat.test$p.signif 
-  
-  p3 <- p1 + stat_pvalue_manual(
-      stat.test, label = "p.signif", hide.ns = T)
-print(p3)
-
-CairoPDF(file = paste0("graphs/2021.02_ISnorm_pmol_noDG_cold_acylchain_groups.pdf"), height = 8, width = 12,)
-  print(p3)
-
-rm(list=ls())
-
-```
-
-For individual plots acyl chain cold, control or KO
-```{r}
-Z <- temp1 %>% filter(str_detect(Condition,"cold"))
-Z$Condition <- gsub("_cold","",Z$Condition)
-Z$Condition <- gsub("HNF4a ", "", Z$Condition)
-Z$Condition <- as.factor(Z$Condition)
-Z <- as.data.frame(Z[-1])
-
-#manually drop columns missing data 
-View(Z)
-Z <- Z[,-c(21,27)]
-Z2 <-melt(Z,id.vars=1)
-Z3 <- split(Z2, Z2$variable)
-
-plot_list <- list()
-
-#define variables
-a = "variable"
-b = "value"
-c = "Condition"
-
-for (i in 1:length(Z3)) {
-  temp <- Z3[[i]]
-  p0 <- ggbarplot(temp, x = a, y = b,
-            add = c("mean_se", "dotplot"), color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = min(Z3$value, na.rm = T)),
-            alpha = 0.5, position = position_dodge(0.8), size = 0.5) +
-            ggtitle(temp$`variable`[1]) +
-            scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
-    
-  
-  p1 <- ggpar(p0, palette = c("white","black"), legend = "right", legend.title = c, 
-      xlab = F, ylab = temp$variable)
-
-  stat.test <- temp %>% 
-                  #group_by(Treatment) %>% 
-                  t_test(value ~ Condition) %>% 
-                  adjust_pvalue(method = "none") %>%
-                  add_significance("p")
-  #stat.test$Treatment = factor(stat.test$Treatment, levels = c("RT", "cold"), ordered = TRUE) #Had to reorder the rows manually so the match with the order on graph (eg RT, cold)
-  stat.test <- stat.test %>% add_xy_position(fun = "mean_sd", x="Treatment")
-  stat.test$p.adj.signif <- stat.test$p.signif 
-  
-  p3 <- p1 + stat_pvalue_manual(
-      stat.test, hide.ns = T)
-
-  plot_list[[i]] = p3
-}
-print(p3)
-View(stat.test)
-CairoPDF(file = "graphs/202102_ISnorm_pmol_noDG_acyl_individual.pdf", width = 12, height = 12)
-  for (i in 1:length(Z3)) {
-    print(plot_list[[i]])
-  }
-
-```
-
-
-Acyl chain fold change 
-```{r}
-Z<-temp1[,-1]
-Z$Condition <- gsub("HNF4a ", "", Z$Condition)
-Z$Condition <- as.factor(Z$Condition)
-Z <- as.data.frame(Z)
-
-X = matrix(NA, ncol = 2, nrow = ncol(Z[]))
-colnames(X) <- c("RT", "cold")
-rownames(X) <- colnames(Z)
-is.matrix(X)
-
-  for (j in 2:ncol(Z)) {                               
-    X[j,1] = round(mean(Z[Z$Condition == "KO_RT",j],na.rm = T)/mean(Z[Z$Condition == "Control_RT",j], na.rm = T), 4)
-    X[j,2] = round(mean(Z[Z$Condition == "KO_cold",j],na.rm = T)/mean(Z[Z$Condition == "Control_cold",j], na.rm = T), 4)
-  }
-
-X<- X[complete.cases(X), ] #remove rows with NA
-X1 <- log2(X)
-X1 <- as.data.frame(X1)
-X2 <- t(X1)
-X2 <- as.data.frame((X2))
-X2$Temp <- rownames(X2)
-X3 <- melt(X2[,c(1:25)], id.vars=25)
-# Define x-axis variable
-a = "variable"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Temp"
-X3$Temp = factor(X3$Temp, levels = c("RT", "cold"), ordered = TRUE) 
-p2 <- ggbarplot(X3, x = a, y = b,
-            color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5) 
-p3 <- ggpar(p2, palette = "npg", 
-      xlab = F, ylab = "log2(FC)[KO/Control]") +
-theme(text = element_text(size=20),
-        axis.text.x = element_text(angle=50, hjust=1, size = 10)) 
-
-CairoPDF(file = paste0("graphs/2021.02_ISnorm_acylchain_FC.pdf"), height = 8, width = 12,)
-  print(p3)
-```  
-  
-Acyl chain ratios
-```{r}
-temp1
-
-"20:0/18:0" #Elovl1/3
-"22:0/20:0" #Elovl1/3
-"22:5/20:5" #Elovl2/5
-"18:0/16:0" #Elovl6
-"20:5/20:4" #Fads1
-"20:3/20:2" #Fads2
-"22:4/20:4"
-"24:0/18:0"
-
-
-temp1$"20:0/18:0" <- temp1$`20:0`/temp1$`18:0`
-temp1$"22:0/20:0" <- temp1$`22:0`/temp1$`20:0`
-temp1$"22:5/20:5" <- temp1$`22:5`/temp1$`20:5`
-temp1$"18:0/16:0" <- temp1$`18:0`/temp1$`16:0`
-temp1$"20:5/20:4" <- temp1$`20:5`/temp1$`20:4`
-temp1$"20:3/20:2" <- temp1$`20:3`/temp1$`20:2`
-temp1$"22:4/20:4" <- temp1$`22:4`/temp1$`20:4`
-temp1$"24:0/18:0" <- temp1$`24:0`/temp1$`18:0`
-temp1$"24:0/22:0" <- temp1$`24:0`/temp1$`22:0`
-temp1$"18:1/16:1" <- temp1$`18:1`/temp1$`16:1`
-temp1$"18:1/18:0" <- temp1$`18:1`/temp1$`18:0`
-temp1$"16:1/16:0"<-  temp1$`16:1`/temp1$`16:0`
-temp1$"20:3/18:3"<-  temp1$`20:3`/temp1$`18:3`
-temp1$"22:6/22:5"<-  temp1$`22:6`/temp1$`22:5`
-
-
-temp2 <- temp1[,c(2,29:42)] 
-temp2$Condition <- gsub("HNF4a ", "", temp2$Condition)
-temp2$Condition <- as.factor(temp2$Condition)
-temp2 <- as.data.frame(temp2)
-temp3 <-melt(temp2,id.vars=1)
-temp4 <- temp3 %>% separate("Condition",c('Genotype','Treatment'))
-ratios$Treatment = factor(ratios$Treatment, levels = c("RT", "cold"), ordered = TRUE) 
-ratios <- split(temp4, temp4$variable)
-plot_list <- list()
-
-#define variables
-a = "Treatment"
-b = "value"
-c = "Genotype"
-
-for (i in 1:length(ratios)) {
-  temp <- ratios[[i]]
-  p0 <- ggbarplot(temp, x = a, y = b,
-            add = c("mean_se", "dotplot"), color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = min(ratios$value, na.rm = T)),
-            alpha = 0.5, position = position_dodge(0.8), size = 0.5) +
-            ggtitle(temp$`variable`[1]) +
-            scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
-    
-  
-  p1 <- ggpar(p0, palette = c("white","black"), legend = "right", legend.title = c, 
-      xlab = F, ylab = temp$variable)
-
-  stat.test <- temp %>% 
-                  group_by(Treatment) %>% 
-                  t_test(value ~ Genotype) %>% 
-                  adjust_pvalue(method = "none") %>%
-                  add_significance("p")
-  stat.test$Treatment = factor(stat.test$Treatment, levels = c("RT", "cold"), ordered = TRUE) #Had to reorder the rows manually so the match with the order on graph (eg RT, cold)
-  stat.test <- stat.test %>% add_xy_position(fun = "mean_sd", x="Treatment")
-  stat.test$p.adj.signif <- stat.test$p.signif 
-  
-  p3 <- p1 + stat_pvalue_manual(
-      stat.test, hide.ns = T)
-
-  plot_list[[i]] = p3
-}
-print(p3)
-
-CairoPDF(file = "graphs/202102_ISnorm_pmol_noDG_acyl_ratios.pdf", width = 12, height = 12)
-  for (i in 1:length(ratios)) {
-    print(plot_list[[i]])
-  }
-
-
-
-
-```
-Acyl chain analysis from Jain et al 2022 (liver, cold exposure)
-
-```{r}
-library(readr)
-
-df <- read_csv("Jain_2022_liver.csv")
-View(df)
-
-df <- df[,-c(3:5)]
-
-
-chains <- c("12:0", "12:1", "14:0", "14:1", "16:0", "16:1", "17:0", "18:0", "18:1", 
-              "18:2", "18:3", "20:0", "20:1", "20:2", "20:3", "20:4", "20:5", "22:0", 
-              "22:1", "22:3", "22:4", "22:5", "22:6", "24:0", "24:1", "26:0")
-
-W = matrix(NA, ncol = length(chains), nrow = nrow(df))
-  colnames(W) <- chains
-  
-  for (j in chains){
-    temp <- df[,grep(j, names(df))]
-    W[,which(chains==j)] = rowSums(temp, na.rm = T)
-  }
-  
-temp1 <- cbind(df[,c(1:2)], W)
-
-Z <- temp1 
-Z$Temp <- as.factor(Z$Temp)
-Z <- as.data.frame(Z[-1])
-
-#manually drop columns missing data 
-View(Z)
-Z1 <- Z[ , -which(names(Z) %in% c("12:1","14:1","22:3","26:0"))]
-View(Z1)
-
-Z2 <- melt(Z1) 
-Z2 <- Z2 %>% mutate(acyl=variable, .keep="unused")
-# Define x-axis variable
-a = "acyl"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Temp"
-Z2$Temp = factor(Z2$Temp, levels = c("RT", "Cold"), ordered = TRUE) 
-View(Z2)
-
-p0 <- ggbarplot(Z2, x = a, y = b,
-            add = "mean_se", color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5) 
-
-
-p1 <- ggpar(p0, palette = c("white","black"), legend = "right", legend.title = c, 
-      xlab = F, ylab = "Sum Abundance", title = "Liver acyl chains") +
-theme(text = element_text(size=20),
-        axis.text.x = element_text(angle=45, hjust=1, size = 12)) 
-print(p1)
-
-stat.test <- Z2 %>% 
-                  group_by(acyl) %>% 
-                  t_test(value ~ Temp) %>% 
-                  adjust_pvalue(method = "none") %>%
-                  add_significance("p") %>% 
-                  add_xy_position(fun="mean_se",x=a,dodge=0.8)
-  stat.test$p.adj.signif <- stat.test$p.signif 
-  
-  p3 <- p1 + stat_pvalue_manual(
-      stat.test, label = "p.signif", hide.ns = T)
-print(p3)
-
-CairoPDF(file = paste0("graphs/Jain_liver_acylchain.pdf"), height = 8, width = 12,)
-  print(p3)
-
-rm(list=ls())
-
-```
-
-Plasmalogens by acyl chain analysis from Jain et al 2022 (liver, cold exposure)
-```{r}
-df <- read_csv("Jain_2022_liver.csv")
-View(df)
-df <- df[,-c(3:5)]
-
-df_ether <- df %>% select(grep("Temp", names(df)), grep("Ether", names(df)))
-
-df_ether$Temp <- as.factor(df_ether$Temp)
-#means <- ether %>% group_by(Condition) %>% summarise(across(everything(), list(mean)))
-#ether_means <- melt(means[,c(1:30)],id.vars = 1)
-df_ether <- as.data.frame(df_ether)
-ether_2 <- melt(df_ether[,c(1:35)],id.vars = 1, variable_name = "species")
-View(ether_2)
-# Define x-axis variable
-a = "species"
-
-# Define y-axis variable
-b = "value"
-
-# Define additional variable related to color (if none, set equal to a)
-c = "Temp"
-
-ether_2$Temp = factor(ether_2$Temp, levels = c("RT", "Cold"), ordered = TRUE) 
-
-################ all ethers on one graph
-p0 <- ggbarplot(ether_2, x = a, y = b,
-            add = c("mean_se"), color = "black", fill = c, 
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5) 
-
-
-p1 <- ggpar(p0, legend = "right", palette = c("white","black"), legend.title = c, 
-      xlab = F, ylab = "Normalized Abundance") +
-theme(text = element_text(size=12),
-        axis.text.x = element_text(angle=60, hjust=1, size = 8)) 
-print(p1)
-
-
-stat.test <- ether_2 %>% 
-                  group_by(species) %>% 
-                  t_test(value ~ Temp) %>% 
-                  adjust_pvalue(method = "none") %>%
-                  add_significance("p")
-View(stat.test)
-  #stat.test$Treatment = factor(stat.test$Treatment, levels = c("RT", "cold"), ordered = TRUE) #Had to reorder the rows manually so the match with the order on graph (eg RT, cold)
-  stat.test <- stat.test %>% add_xy_position(fun = "mean_sd", x="species")
-  stat.test$p.adj.signif <- stat.test$p.signif 
-  
-  p3 <- p1 + stat_pvalue_manual(
-      stat.test, hide.ns = T)
-  print(p3)
-
-CairoPDF(file = paste0("graphs/Jain_liver_ether_species.pdf"), height = 8, width = 12,)
-  print(p3)
-```
-```{r}
-df_ether_sum <- mutate(df_ether, Total = rowSums(df_ether[,c(2:35)]))
-sum_graph <- df_ether_sum[c(1,36)]
-sum_graph$Temp = factor(sum_graph$Temp, levels = c("RT", "Cold"), ordered = TRUE) 
-
-a = "Temp"
-b = "Total"
-p <- ggbarplot(sum_graph, x = a, y = b,
-            add = c("mean_se"), color = "black", fill=a,
-            add.params = list(width = 0.35, binwidth = 0.07),
-            alpha = 0.5, position = position_dodge(0.8), size = .5) 
-p1 <- ggpar(p, legend = "right", palette = c("white","black"), legend.title = c, 
-      xlab = F, ylab = "Sum Normalized Abundance")
-
-stat.test <- sum_graph %>% 
-                  t_test(Total ~ Temp) %>% 
-                  adjust_pvalue(method = "none") %>%
-                  add_significance("p")
-
-CairoPDF(file = paste0("graphs/Jain_liver_ether_sum.pdf"), height = 8, width = 12,)
-  print(p1)
-
-```
 
