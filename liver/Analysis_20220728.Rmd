@@ -352,17 +352,25 @@ colnames(mdat5)[colnames(mdat5) == 'x'] <- 'value'
 View(mdat5)
 
 mdat5$DB <- as.numeric(mdat5$DB)
-mdat5$DB = factor(mdat5$DB, ordered = T)
+mdat5$class[mdat5$DB < 2] <- "0-1"
+mdat5$class[mdat5$DB == 2] <- "2"
+mdat5$class[mdat5$DB == 3] <- "3"
+mdat5$class[mdat5$DB == 4] <- "4"
+mdat5$class[mdat5$DB > 4] <- "5+"
+
+
+mdat5$DB <- as.numeric(mdat5$DB)
+mdat5$class = factor(mdat5$class, ordered = T)
 mdat5$Temp = factor(mdat5$Temp, levels = c("Control_RT","KO_RT","Control_cold", "KO_cold"), ordered = T)
 
-p0 <- ggplot(mdat5, aes(x=Temp, y=value, fill=DB)) + 
+p0 <- ggplot(mdat5, aes(x=Temp, y=value, fill=class)) + 
     geom_bar(position="fill", stat="identity")
 
 p1 <- ggpar(p0, legend = "right", legend.title = "Number of double bonds", 
                ylab = "% Abundance", title = "Triglyceride Composition")
   p2 <- p1 + theme_bw() 
 
-CairoPDF(file = paste0("acyl_chain/all_TGs_segmented.pdf"), height = 8, width = 12,)
+CairoPDF(file = paste0("acyl_chain/all_TGs_segmented_grouped.pdf"), height = 8, width = 12,)
   print(p2)
 
 ######

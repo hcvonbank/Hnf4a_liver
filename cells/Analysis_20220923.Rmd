@@ -1,0 +1,454 @@
+---
+title: "Data analysis"
+author: "Lainy VonBank"
+date: "09.12.2022"
+output: html_document
+---
+# Load packages and data
+```{r, message=FALSE, warning=FALSE}
+if(!require(tidyverse)){install.packages("tidyverse")}
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(ggpubr)){install.packages("ggpubr")}
+if(!require(reshape)){install.packages("reshape")}
+if(!require(rstatix)){install.packages("rstatix")}
+if(!require(ggrepel)){install.packages("ggrepel")}
+if(!require(ggsci)){install.packages("ggsci")}
+if(!require(scales)){install.packages("scales")}
+if(!require(heatmaply)){install.packages("heatmaply")}
+if(!require(Cairo)){install.packages("Cairo")}
+if(!require(factoextra)){install.packages("factoextra")}
+if(!require(RColorBrewer)){install.packages("RColorBrewer")}
+if(!require(tidyverse)){install.packages("tidyverse")}
+if(!require(reshape)){install.packages("reshape")}
+if(!require(Cairo)){install.packages("Cairo")}
+if(!require(ggpubr)){install.packages("ggpubr")}
+if(!require(rstatix)){install.packages("rstatix")}
+if(!require(ggforce)){install.packages("ggforce")}
+library(forcats)
+```
+
+#Ether lipids
+```{r}
+dfs <- read_csv("cleanup/combined_pmol_mg_protein.csv")
+dfs <- dfs[-c(13),]
+dfs[dfs == 0] <- NA
+dfs<- dfs %>%
+  unite("Condition",2:3,remove=T)
+dfs <- dfs[-c(3)] #remove cell protein
+
+ether <- dfs %>% select(grep("Condition", names(dfs)), grep("Ether", names(dfs)))
+ether$Condition <- as.factor(ether$Condition)
+#means <- ether %>% group_by(Condition) %>% summarise(across(everything(), list(mean)))
+#ether_means <- melt(means[,c(1:30)],id.vars = 1)
+ether <- as.data.frame(ether)
+ether_2 <- melt(ether,id.vars = 1)
+
+colnames(ether_2)[colnames(ether_2) == 'variable'] <- 'lipid'
+
+# Define x-axis variable
+a = "lipid"
+
+# Define y-axis variable
+b = "value"
+
+# Define additional variable related to color (if none, set equal to a)
+c = "Condition"
+ether_2$Condition = factor(ether_2$Condition, levels = c("pLV_NT","pLV_HNF4a", "PPARa_NT", "PPARa_HNF4a"), ordered = TRUE) 
+
+p0 <- ggbarplot(ether_2, x = a, y = b,
+            add = c("mean_se"), color = "black", fill = c, 
+            add.params = list(width = 0.35, binwidth = 0.07),
+            alpha = 0.5, position = position_dodge(0.8), size = .5) 
+
+
+p1 <- ggpar(p0, palette = c("#fdae61","#d7191c","#abd9e9","#2c7bb6"), legend = "right", legend.title = c, 
+      xlab = F, ylab = "Normalized Abundance") +
+theme(text = element_text(size=20),
+        axis.text.x = element_text(angle=45, hjust=1, size = 12)) 
+
+stat.test <- ether_2 %>% 
+                  group_by(lipid) %>% 
+                  t_test(value ~ Condition) %>% 
+                  adjust_pvalue(method = "none") %>%
+                  add_significance("p") %>%
+  add_xy_position(fun="mean_se", x=a, dodge=0.8)
+stat.test$p.adj.signif <- stat.test$p.signif 
+  
+  p3 <- p1 + stat_pvalue_manual(
+      stat.test, label = "p.adj.signif", hide.ns = T)
+ 
+CairoPDF(file = paste0("ether_bargraph.pdf"), height = 8, width = 12,)
+  print(p3)
+  
+
+```
+
+# Lipid class distribution
+```{r}
+list.files("cleanup/")
+mydata <- read_csv("cleanup/combined_pmol_mg_protein.csv")
+#removing sample 13 which was a duplicate sample
+mydata <- mydata[-c(13),]
+
+mydata[mydata == 0] <- NA
+mydata<- mydata %>%
+  unite("Condition",2:3,remove=T)
+mydata1 <- mydata[-c(3)] #remove cell protein
+
+
+mydata1_PL <- mydata1[,c(1:2,grep("PC", colnames(mydata1)),grep("PE", colnames(mydata1)),grep("PI", colnames(mydata1)),grep("PG", colnames(mydata1)),grep("PS", colnames(mydata1)), grep("PMe", colnames(mydata1)),grep("BMP", colnames(mydata1)), grep("DG", colnames(mydata1)), grep("PA", colnames(mydata1)))]
+colnames(mydata1_PL) <- gsub("/", "_", colnames(mydata1_PL))
+
+mydata1_Cer_other <- mydata1[,c(1:2,grep("Cer", colnames(mydata1)),grep("SM", colnames(mydata1)), grep("FAH", colnames(mydata1)))]
+
+mdata1_FA <- mydata1[,c(1:2, grep("FA", colnames(mydata1)),grep("ACar", colnames(mydata1)))]
+mdata1_FA <- mdata1_FA[-grep("FAHFA", colnames(mdata1_FA))]
+
+
+mydata1_TG <- mydata1[,c(1:2,grep("TG", colnames(mydata1)))]
+
+```
+
+#Phospholipids
+```{r}
+mdat1 <- mydata1_PL 
+mdat1[is.na(mdat1)] <- 0
+
+mdat2 <- reshape2::melt(mdat1, id = c(1:2))
+mdat2$variable <- gsub("\\.1", "", mdat2$variable)
+mdat2$variable <- gsub("\\+2O", "", mdat2$variable)
+mdat2$variable <- gsub("\\+1O", "", mdat2$variable)
+view(mdat2)
+mdat2$variable <- gsub(".*PC ", "", mdat2$variable)
+mdat2$variable <- gsub(".*PE ", "", mdat2$variable)
+mdat2$variable <- gsub(".*PI ", "", mdat2$variable)
+mdat2$variable <- gsub(".*PS ", "", mdat2$variable)
+mdat2$variable <- gsub(".*PG ", "", mdat2$variable)
+mdat2$variable <- gsub(".*PA ", "", mdat2$variable)
+mdat2$variable <- gsub(".*BMP ", "", mdat2$variable)
+mdat2$variable <- gsub(".*PMeOH ", "", mdat2$variable)
+mdat2$variable <- gsub(".*DG ", "", mdat2$variable)
+
+mdat2_FA <- str_split_fixed(mdat2$variable, "_", 2)
+mdat3 <- cbind(mdat2, mdat2_FA)
+
+mdat3_FA1 <- mdat3[,1:5]
+mdat3_FA2 <- mdat3[,c(1:4,6)]
+
+names(mdat3_FA1)[5] <- "FA"
+names(mdat3_FA2)[5] <- "FA"
+
+mdat4 <- bind_rows(mdat3_FA1, mdat3_FA2)
+#check that the number of rows equals the sum of the the mdat3FA1+2
+View(mdat4)
+mdat4$FA <- gsub("e", " ", mdat4$FA)
+
+chains <- c("12:0", "14:0","15:0", "16:0", "16:1","17:0","17:1", "18:0", "18:1", 
+            "18:2", "18:3","19:0", "20:0","20:1","20:2","20:3", "20:4", "20:5", "22:4", 
+            "22:5", "22:6", "24:1")
+mdat4_2 <- mdat4[mdat4$FA %in% chains,]
+#Save a csv for each lipid class
+write_csv(mdat4_2, "acyl_chain/acyl_PL.csv")
+rm(list = ls())
+```
+
+#Ceramides/other
+```{r}
+mdat1 <- mydata1_Cer_other
+mdat1[is.na(mdat1)] <- 0
+
+mdat2 <- reshape2::melt(mdat1, id = c(1:2))
+mdat2$variable <- gsub("\\.1", "", mdat2$variable)
+view(mdat2)
+mdat2$variable <- gsub(".* d", "", mdat2$variable)
+mdat2$variable <- gsub(".* t", "", mdat2$variable)
+mdat2$variable <- gsub("SM ", "", mdat2$variable)
+mdat2$variable <- gsub(".*FAHFA ", "", mdat2$variable)
+
+mdat2_FA <- str_split_fixed(mdat2$variable, "_", 2)
+mdat3 <- cbind(mdat2, mdat2_FA)
+
+mdat3_FA1 <- mdat3[,1:5]
+mdat3_FA2 <- mdat3[,c(1:4,6)]
+
+names(mdat3_FA1)[5] <- "FA"
+names(mdat3_FA2)[5] <- "FA"
+
+mdat4 <- bind_rows(mdat3_FA1, mdat3_FA2)
+#check that the number of rows equals the sum of the the mdat3FA1+2
+View(mdat4)
+
+chains <- c("12:0", "14:0","15:0", "16:0", "16:1","17:0","17:1", "18:0", "18:1", 
+            "18:2", "18:3","19:0", "20:0","20:1","20:2","20:3", "20:4", "20:5", "22:4", 
+            "22:5", "22:6", "24:1")
+mdat4_2 <- mdat4[mdat4$FA %in% chains,]
+#Save a csv for each lipid class
+write_csv(mdat4_2, "acyl_chain/acyl_Cer.csv")
+rm(list = ls())
+```
+
+#FA/AC
+```{r}
+mdat1 <- mdata1_FA
+mdat1[is.na(mdat1)] <- 0
+
+mdat2 <- reshape2::melt(mdat1, id = c(1:2))
+mdat2$variable <- gsub("\\.1", "", mdat2$variable)
+view(mdat2)
+mdat2$variable <- gsub("FA ", "", mdat2$variable)
+mdat2$variable <- gsub("ACar ", "", mdat2$variable)
+mdat2$FA <- mdat2$variable
+
+chains <- c("12:0", "14:0","15:0", "16:0", "16:1","17:0","17:1", "18:0", "18:1", 
+            "18:2", "18:3","19:0", "20:0", "20:1","20:2","20:3", "20:4", "20:5", "22:4", 
+            "22:5", "22:6", "24:1")
+mdat4_2 <- mdat2[mdat2$FA %in% chains,]
+#Save a csv for each lipid class
+write_csv(mdat4_2, "acyl_chain/acyl_FA.csv")
+rm(list = ls())
+```
+
+
+#Triglycerides (separated)
+```{r}
+#For separated acyl chains
+mdat1 <- mydata1_TG
+mdat1[is.na(mdat1)] <- 0
+
+mdat2 <- reshape2::melt(mdat1, id = c(1:2))
+mdat2$variable <- gsub("\\.1", "", mdat2$variable)
+
+mdat2$variable <- gsub("TG ", "", mdat2$variable)
+
+mdat2_FA <- str_split_fixed(mdat2$variable, "_", 3)
+mdat3 <- cbind(mdat2, mdat2_FA)
+
+mdat3_FA1 <- mdat3[,1:5]
+mdat3_FA2 <- mdat3[,c(1:4,6)]
+mdat3_FA3 <- mdat3[,c(1:4,7)]
+names(mdat3_FA1)[5] <- "FA"
+names(mdat3_FA2)[5] <- "FA"
+names(mdat3_FA3)[5] <- "FA"
+mdat4 <- bind_rows(mdat3_FA1, mdat3_FA2, mdat3_FA3)
+
+
+View(mdat4)
+chains <- c("12:0", "14:0","15:0", "16:0", "16:1","17:0","17:1", "18:0", "18:1", 
+            "18:2", "18:3","19:0", "20:0","20:1","20:2","20:3", "20:4", "20:5", "22:4", 
+            "22:5", "22:6", "24:1")
+mdat4_2 <- mdat4[mdat4$FA %in% chains,]
+#Save a csv for each lipid class
+write_csv(mdat4_2, "acyl_chain/acyl_TG.csv")
+rm(list = ls())
+```
+
+#Segmented Bar graph acyl chain sums
+```{r}
+list.files()
+N1 <- read_csv("acyl_chain/acyl_Cer.csv")
+N2 <- read_csv("acyl_chain/acyl_PL.csv")
+N3 <- read_csv("acyl_chain/acyl_FA.csv") 
+N4 <- read_csv("acyl_chain/acyl_TG.csv")
+
+mdat_combo <- rbind(N1,N2,N3,N4)
+
+
+mdat5 <- aggregate(mdat_combo$value, by=list(Name=mdat_combo$Name, Temp=mdat_combo$Condition, FA=mdat_combo$FA), FUN=sum) #sum acyl chain per sample
+View(mdat5)
+
+
+mdat6 <- str_split_fixed(mdat5$`FA`,":", 2)
+mdat_class <- cbind(mdat5,mdat6)
+colnames(mdat_class)[colnames(mdat_class) == 'x'] <- 'value'
+View(mdat_class)
+mdat_class$`2` <- as.numeric(mdat_class$`2`)
+
+mdat_class$class[mdat_class$`2` == 0] <- "SFA"
+mdat_class$class[mdat_class$`2` == 1] <- "MUFA"
+mdat_class$class[mdat_class$`2` > 1] <- "PUFA"
+
+Z <- mdat_class
+Z$Temp = factor(Z$Temp, levels = c("pLV_NT","pLV_HNF4a", "PPARa_NT", "PPARa_HNF4a"), ordered=T)
+Z$class = factor(Z$class, levels = c("SFA", "MUFA", "PUFA"),ordered=T)
+
+
+p0 <- ggplot(Z, aes(x=Temp, y=value, fill=class)) + 
+    geom_bar(position="fill", stat="identity")
+
+p1 <- ggpar(p0, legend = "right", legend.title = "Saturation Class", 
+                xlab = "RT", ylab = "% Abundance")
+  p2 <- p1 + theme_bw() 
+
+CairoPDF(file = paste0("acyl_chain/segmented_RT.pdf"), height = 8, width = 12,)
+  print(p2)
+
+
+```
+
+
+
+#Triglycerides (composite). This incorporates TGs that did not have acyl chains fully annotated, but can still gather information on the number of double bonds. 
+```{r}
+mdat1 <- mydata1_TG 
+mdat1[is.na(mdat1)] <- 0
+
+mdat2 <- reshape2::melt(mdat1, id = c(1:2))
+mdat2$variable <- gsub("\\.1", "", mdat2$variable)
+
+mdat2$variable <- gsub(".*TG ", "", mdat2$variable)
+
+mdat2_FA <- str_split_fixed(mdat2$variable, "_", 3)
+mdat3 <- cbind(mdat2, mdat2_FA)
+
+#For composite acyl chains 
+mdat3_DB1 <- str_split_fixed(mdat3$`1`,":", 2)
+mdat3_DB2 <- str_split_fixed(mdat3$`2`,":", 2)
+mdat3_DB3 <- str_split_fixed(mdat3$`3`,":", 2)
+mdat3_DB <- cbind(mdat3, mdat3_DB1, mdat3_DB2, mdat3_DB3)
+mdat3_DB[,8:ncol(mdat3_DB)] <- sapply(mdat3_DB[,8:ncol(mdat3_DB)], as.numeric)
+mdat3_DB$sumacyl <- rowSums(mdat3_DB[,c(8,10,12)], na.rm=T)
+mdat3_DB$sumDB <- rowSums(mdat3_DB[,c(9,11,13)], na.rm=T)
+mdat3_DB$sumDB <- as.character(mdat3_DB$sumDB)
+mdat3_DB <- mdat3_DB %>% unite("sumCOMP",14:15, sep = ":", remove = F)
+
+mdat5 <- aggregate(mdat3_DB$value, by=list(Temp=mdat3_DB$Condition, DB=mdat3_DB$sumDB), FUN=sum)
+colnames(mdat5)[colnames(mdat5) == 'x'] <- 'value'
+View(mdat5)
+
+mdat5$DB <- as.numeric(mdat5$DB)
+mdat5$class[mdat5$DB < 2] <- "0-1"
+mdat5$class[mdat5$DB == 2] <- "2"
+mdat5$class[mdat5$DB == 3] <- "3"
+mdat5$class[mdat5$DB == 4] <- "4"
+mdat5$class[mdat5$DB > 4] <- "5+"
+
+
+mdat5$DB <- as.numeric(mdat5$DB)
+mdat5$class = factor(mdat5$class, ordered = T)
+mdat5$Temp = factor(mdat5$Temp, levels = c("pLV_NT","pLV_HNF4a", "PPARa_NT", "PPARa_HNF4a"), ordered = T)
+
+p0 <- ggplot(mdat5, aes(x=Temp, y=value, fill=class)) + 
+    geom_bar(position="fill", stat="identity")
+
+p1 <- ggpar(p0, legend = "right", legend.title = "Number of double bonds", 
+               ylab = "% Abundance", title = "Triglyceride Composition")
+  p2 <- p1 + theme_bw() 
+
+CairoPDF(file = paste0("acyl_chain/all_TGs_segmented_grouped.pdf"), height = 8, width = 12,)
+  print(p2)
+
+######
+KOc <- mdat5[mdat5$Temp == "KO_cold",]
+KOrt <- mdat5[mdat5$Temp == "KO_RT",]
+
+pie(KOc$x, labels = KOc$DB, main = "Cold KO",
+    border="white")
+pie(KOrt$x, labels = KOrt$DB, main = "RT KO",
+    border="white")
+
+```
+
+
+#Bar graph acyl summation
+```{r}
+list.files()
+N1 <- read_csv("acyl_chain/acyl_Cer.csv")
+N2 <- read_csv("acyl_chain/acyl_PL.csv")
+N3 <- read_csv("acyl_chain/acyl_FA.csv") 
+N4 <- read_csv("acyl_chain/acyl_TG.csv")
+
+mdat_combo <- rbind(N1,N2,N3,N4)
+
+mdat5 <- aggregate(mdat_combo$value, by=list(Name=mdat_combo$Name, Temp=mdat_combo$Condition, FA=mdat_combo$FA), FUN=sum) #sum acyl chain per sample
+
+colnames(mdat5)[colnames(mdat5) == 'x'] <- 'pmol'
+
+
+mdat5$Temp = factor(mdat5$Temp, levels = c("pLV_NT","pLV_HNF4a", "PPARa_NT", "PPARa_HNF4a"), ordered=T)
+mdat5$FA = factor(mdat5$FA, ordered = T)
+
+Z<-mdat5[!grepl("16:0|18:1", mdat5$FA),]
+Zhigh <- filter(mdat5, FA %in% c("16:0", "18:1"))
+Z$FA = factor(Z$FA, ordered = T)
+Zhigh$FA = factor(Zhigh$FA, ordered = T)
+
+a = "FA"
+b = "pmol"
+c = "Temp"
+p0 <- ggbarplot(Z, x = a, y = b,
+            add = "mean_se", color = "black", fill = c, 
+            add.params = list(width = 0.35, binwidth = 0.07),
+            alpha = 0.5, position = position_dodge(0.8), size = .5) 
+p1 <- ggpar(p0, legend = "right", legend.title = c, xlab = F, ylab = "Acyl chain sum (pmol/mg protein)") +
+  theme(text = element_text(size=12),
+        axis.text.x = element_text(angle=45, hjust=1, size = 12)) 
+
+stat.test <- Z %>% 
+                  group_by(FA) %>% 
+                  t_test(pmol ~ Temp) %>% 
+                  adjust_pvalue(method = "none") %>%
+                  add_significance("p") %>%
+  add_xy_position(fun="mean_se", x=a, dodge=0.8)
+stat.test$p.adj.signif <- stat.test$p.signif 
+  
+  p3 <- p1 + stat_pvalue_manual(
+      stat.test, label = "p.adj.signif", hide.ns = T)
+ 
+  CairoPDF(file = paste0("acyl_chain/lower_abund_bar.pdf"), height = 8, width = 12,)
+  print(p3)
+   
+
+```
+
+Individual blots for each acyl chain
+```{r}
+
+mdat5 <- aggregate(mdat_combo$value, by=list(Name=mdat_combo$Name, Temp=mdat_combo$Condition, FA=mdat_combo$FA), FUN=sum)
+colnames(mdat5)[colnames(mdat5) == 'x'] <- 'pmol'
+mdat5$Temp = factor(mdat5$Temp, levels = c("pLV_NT","pLV_HNF4a", "PPARa_NT", "PPARa_HNF4a"), ordered=T)
+Z2 <- split(mdat5, mdat5$FA)
+plot_list <- list()
+
+a = "Temp"
+b = "pmol"
+
+for (i in 1:length(Z2)) {
+  temp <- Z2[[i]]
+  p0 <- ggbarplot(temp, x = a, y = b,
+            add = "mean_se", color = "black", 
+            add.params = list(width = 0.35, binwidth = min(Z2$value, na.rm = T)),
+            alpha = 0.5, position = position_dodge(0.8), size = .5)  +
+            ggtitle(temp$`FA`[1])
+  
+  p1 <- ggpar(p0, legend = "right", palette="npg", legend.title = c, xlab = F, ylab = "Acyl chain sum (pmol/mg protein)") +
+  theme(text = element_text(size=12),
+        axis.text.x = element_text(angle=45, hjust=1, size = 12)) 
+
+stat.test <- temp %>% 
+                  t_test(pmol ~ Temp) %>% 
+                  adjust_pvalue(method = "none") %>%
+                  add_significance("p") %>%
+  add_xy_position(fun="mean_se", x=a, dodge=0.8)
+stat.test$p.adj.signif <- stat.test$p.signif 
+  
+  p3 <- p1 + stat_pvalue_manual(
+      stat.test, label = "p.adj.signif", hide.ns = T)
+  plot_list[[i]] = p3
+}
+print(p3)
+
+ CairoPDF(file = "acyl_chain/separate_bar.pdf", width = 12, height = 12)
+  for (i in 1:length(Z2)) {
+    print(plot_list[[i]])
+  }
+
+
+```
+
+
+
+
+
+
+
+
