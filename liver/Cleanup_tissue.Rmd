@@ -18,8 +18,8 @@ getwd()
 # Load data output from Profinder Analysis (exported detailed csv)
 ```{r, message = F}
 list.files()
-mydata <- read_csv("PFA_2021.02_neg_height.csv")
-Y <- mydata %>% select(grep("Name", names(mydata)), grep("Height", names(mydata)))
+mydata <- read_csv("PFA_feb21_ether_neg_area.csv")
+Y <- mydata %>% select(grep("Name", names(mydata)), grep("Area", names(mydata)))
 
 ```
 
@@ -35,7 +35,7 @@ a <- as.name(colnames(select(Y,matches("PB"))))
 print(a)
 # Copy this into the second part of the equation below. Make sure it is the PB
 
-Y1 <- mutate(Y, sub_height = `Height (avg)` - `[Height] liver_PB_neg_02172021_116`)
+Y1 <- mutate(Y, sub_height = `Height (avg)` - `[Area] liver_PB_neg_02172021_116`)
 # Set NA values to 0
 Y1$sub_height <- replace_na(Y1$sub_height, 0)
 print(Y1[Y1$sub_height < 0,]$Name)
@@ -152,8 +152,8 @@ Determine if list is acceptable to remove duplicates.
 # In brackets after lipidup.list, type '[c(2,4)]'
 #rm_lipid <- lipidup.list[c(1:length(lipidup.list))]
 #remove the duplicate annotation with less information on the acyl chain (eg remove TG58:7, keep TG18:0_18:1_22:6)
-rm_lipid <- lipidup.list[c(1)] 
-rm_lipid_2 <- lipidup.list_2[c(2:3)]
+rm_lipid <- lipidup.list[c()] 
+rm_lipid_2 <- lipidup.list_2[c(1)]
 Y7 <- Y6[,!colnames(Y6) %in% rm_lipid]   
 Y8 <- Y7[,!colnames(Y7) %in% rm_lipid_2]   
 ```
@@ -171,7 +171,7 @@ lipid_data <- merge(sample_info, Y8, by = "Name")
 ```
 Verify data looks good and output initial merge file for further QC and analysis
 ```{r}
-write_csv(lipid_data, "cleanup/neg_height_initial.csv")
+write_csv(lipid_data, "cleanup/ether_neg_area_initial.csv")
 rm(list = ls())
 ```
 Repeat for other ionization mode before continuing.
@@ -181,7 +181,7 @@ Repeat for other ionization mode before continuing.
 list.files("cleanup/")
 pos_dat <- read_csv("cleanup/pos_height_initial.csv")
 pos_dat$Name <- as.character(pos_dat$Name)
-neg_dat <- read_csv("cleanup/neg_height_initial.csv")
+neg_dat <- read_csv("cleanup/ether_neg_height_initial.csv")
 neg_dat$Name <- as.character(neg_dat$Name)
 ```
 
@@ -302,6 +302,8 @@ LPE_n <- neg_dat$`LPE 18:1(d7)`
 LPE_n_pmol <- ((4.9/486.64)*0.01*(5/150)*1000*1000*(1/2))
 PE_n <- neg_dat$`PE 15:0_18:1(d7)`
 PE_n_pmol <- ((5.3/711.03)*0.01*(5/150)*1000*1000*(1/2))
+PC_n <- neg_dat$`PC 15:0_18:1(d7)`
+PC_n_pmol <- ((150.6/753.11)*0.01*(5/150)*1000*1000*(1/2))
 PG_n <- neg_dat$`PG 15:0_18:1(d7)`
 PG_n_pmol <- ((26.7/764.02)*0.01*(5/150)*1000*1000*(1/2))
 PI_n <- neg_dat$`PI 15:0_18:1(d7)`
@@ -322,7 +324,7 @@ neg_dat[,grepl("^CL", names(neg_dat))] <-
 neg_dat[,grepl("^EtherOxPC", names(neg_dat))] <- 
   (neg_dat[,grepl("^EtherOxPC", names(neg_dat))]/PE_n)*PE_n_pmol
 neg_dat[,grepl("^EtherPC", names(neg_dat))] <- 
-  (neg_dat[,grepl("^EtherPC", names(neg_dat))]/PE_n)*PE_n_pmol
+  (neg_dat[,grepl("^EtherPC", names(neg_dat))]/PC_n)*PC_n_pmol
 neg_dat[,grepl("^EtherPE", names(neg_dat))] <- 
   (neg_dat[,grepl("^EtherPE", names(neg_dat))]/PE_n)*PE_n_pmol
 neg_dat[,grepl("^FA", names(neg_dat))] <- 
@@ -369,7 +371,7 @@ neg_dat[,grepl("^LPE", names(neg_dat))] <-
 #neg_dat[,grepl("^PA", names(neg_dat))] <- 
  # (neg_dat[,grepl("^PA", names(neg_dat))]/PA_n)
 neg_dat[,grepl("^PC", names(neg_dat))] <- 
-  (neg_dat[,grepl("^PC", names(neg_dat))]/PE_n)*PE_n_pmol
+  (neg_dat[,grepl("^PC", names(neg_dat))]/PE_n)*PC_n_pmol
 neg_dat[,grepl("^PE", names(neg_dat))] <- 
   (neg_dat[,grepl("^PE", names(neg_dat))]/PE_n)*PE_n_pmol
 neg_dat[,grepl("^PG", names(neg_dat))] <- 
@@ -434,7 +436,7 @@ Lipids_Final_norm[is.na(Lipids_Final_norm)] <- 0
 Lipids_Final_norm$Name <- as.numeric(Lipids_Final_norm$Name)
 Lipids_Final_norm  <- Lipids_Final_norm[order(Lipids_Final_norm$Name),]
 #colnames(Lipids_Final_norm) <- gsub("'\\.'.*", "", colnames(Lipids_Final_norm)) #remove the duplicate annotations
-write_csv(Lipids_Final_norm, "cleanup/combined_pmol_mg_tissue.csv")
+write_csv(Lipids_Final_norm, "cleanup/ether_height_pmol_mg_tissue.csv")
 rm(list=ls())
 ```
 
